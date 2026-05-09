@@ -19,12 +19,12 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 		err := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
-					Title("是否执行此命令?").
-					Description(fmt.Sprintf("命令: %s", cmdStr)).
+					Title(t("tui.title")).
+					Description(fmt.Sprintf(t("tui.description"), cmdStr)).
 					Options(
-						huh.NewOption("[y] 执行 (Execute)", "y"),
-						huh.NewOption("[n] 取消 (Cancel)", "n"),
-						huh.NewOption("[e] 解释 (Explain)", "e"),
+						huh.NewOption(t("tui.opt_execute"), "y"),
+						huh.NewOption(t("tui.opt_cancel"), "n"),
+						huh.NewOption(t("tui.opt_explain"), "e"),
 					).
 					Value(&choice),
 			),
@@ -46,10 +46,10 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 			executeCommand(cmdStr)
 			return
 		case "n":
-			fmt.Println("已取消。")
+			fmt.Println(t("tui.cancelled"))
 			os.Exit(0)
 		case "e":
-			fmt.Printf("\n命令解释: %s\n\n", explain)
+			fmt.Printf(t("tui.explain_prefix"), explain)
 			// 继续循环，重新展示菜单
 		}
 	}

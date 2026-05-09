@@ -57,33 +57,36 @@ func printDangerWarning(cmd string) {
 	red := "\033[1;31m"
 	reset := "\033[0m"
 
-	fmt.Println()
-	fmt.Println(red + "╔══════════════════════════════════════════════════════════════╗" + reset)
-	fmt.Println(red + "║  ⚠  严重安全警告：检测到高危命令操作！                     ║" + reset)
-	fmt.Println(red + "╠══════════════════════════════════════════════════════════════╣" + reset)
-	if len(cmd) > 56 {
-		cmd = cmd[:56]
+	truncated := cmd
+	if len(truncated) > 48 {
+		truncated = truncated[:48]
 	}
-	fmt.Printf(red+"║  命令: %-52s ║\n"+reset, cmd)
-	fmt.Println(red + "║  该命令可能对您的系统造成不可逆的损害！                     ║" + reset)
-	fmt.Println(red + "║  请仔细确认无误后，输入 YES 以继续。                       ║" + reset)
-	fmt.Println(red + "╚══════════════════════════════════════════════════════════════╝" + reset)
+
+	fmt.Println()
+	fmt.Println(red + t("guard.warning_line1") + reset)
+	fmt.Printf(red+t("guard.warning_line2")+"\n"+reset, t("guard.warning_title"))
+	fmt.Println(red + t("guard.warning_line3") + reset)
+	fmt.Printf(red+t("guard.warning_line4")+"\n"+reset, truncated)
+	fmt.Printf(red+t("guard.warning_line5")+"\n"+reset, t("guard.warning_desc"))
+	fmt.Printf(red+t("guard.warning_line5")+"\n"+reset, t("guard.warning_prompt"))
+	fmt.Println(red + t("guard.warning_line6") + reset)
 	fmt.Println()
 }
 
 // confirmDangerous 弹出一个文本输入框，强制用户输入大写 YES 才能放行
-// 返回 true 表示用户成功输入了 YES
+// 用户可按 Esc 键取消，返回 true 表示用户成功输入了 YES
 func confirmDangerous() bool {
 	var confirm string
 
 	err := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("请输入大写的 YES 以确认执行此高危命令").
-				Prompt("> ").
+				Title(t("guard.confirm_title")).
+				Description(t("guard.confirm_cancel_hint")).
+				Prompt(t("guard.confirm_prompt")).
 				Validate(func(s string) error {
 					if s != "YES" {
-						return fmt.Errorf("请输入 YES（大写）以确认")
+						return fmt.Errorf("%s", t("guard.confirm_validate"))
 					}
 					return nil
 				}).
@@ -92,7 +95,8 @@ func confirmDangerous() bool {
 	).Run()
 
 	if err != nil {
-		fmt.Println("已取消。")
+		// 用户按下了 Esc 或其他中断操作
+		fmt.Println(t("guard.confirm_cancelled"))
 		return false
 	}
 	return confirm == "YES"

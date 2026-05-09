@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 			apiKey = viper.GetString("openai_api_key")
 		}
 		if apiKey == "" {
-			fmt.Fprintln(os.Stderr, "错误: 请先设置 API_KEY，运行: sm config -k <your-api-key>")
+			fmt.Fprintln(os.Stderr, t("root.config_missing"))
 			os.Exit(1)
 		}
 
@@ -45,14 +45,14 @@ var rootCmd = &cobra.Command{
 
 		resp, err := llm.CallLLM(apiBaseURL, apiKey, modelName, context, args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "调用 AI 失败: %v\n", err)
+			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err)
 			os.Exit(1)
 		}
 
 		// 如果 LLM 需要搜索但无法直接给出命令（慢路径，阶段 5 实现）
 		if resp.NeedSearch && resp.Cmd == "" {
 			fmt.Printf("需要联网搜索以获取准确结果: %s\n", resp.Explain)
-			fmt.Println("联网搜索功能将在后续版本中开放。")
+			fmt.Println(t("root.search_future"))
 			os.Exit(0)
 		}
 
@@ -86,7 +86,7 @@ func initConfig() {
 	} else {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "无法获取用户主目录:", err)
+			fmt.Fprintln(os.Stderr, t("root.home_err"), err)
 			os.Exit(1)
 		}
 		viper.AddConfigPath(home)
@@ -97,12 +97,13 @@ func initConfig() {
 	// 设置默认值
 	viper.SetDefault("api_base_url", "https://api.deepseek.com")
 	viper.SetDefault("model_name", "deepseek-v4-flash")
+	viper.SetDefault("language", "zh")
 
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			fmt.Fprintf(os.Stderr, "读取配置文件出错: %s\n", err)
+			fmt.Fprintf(os.Stderr, t("config.read_err")+"\n", err)
 		}
 	}
 }

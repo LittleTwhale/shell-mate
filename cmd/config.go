@@ -12,17 +12,18 @@ import (
 
 // config 命令的命令行参数
 var (
-	apiKey      string // -k, API 密钥
-	modelName   string // -m, 模型名称
-	apiBaseURL  string // -b, API 端点地址
+	apiKey       string // -k, API 密钥
+	modelName    string // -m, 模型名称
+	apiBaseURL   string // -b, API 端点地址
 	searchAPIKey string // -s, 搜索 API 密钥（预留）
+	language     string // -l, 界面语言 (zh/en)
 )
 
 // configCmd 管理 shell-mate 的所有配置项，并持久化到 ~/.shell-mate.yaml
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "配置 shell-mate 参数",
-	Long: `设置 API_KEY、API_BASE_URL、MODEL_NAME、SEARCH_API_KEY 等配置项，
+	Long: `设置 API_KEY、API_BASE_URL、MODEL_NAME、SEARCH_API_KEY、LANGUAGE 等配置项，
 并将它们持久化保存到 ~/.shell-mate.yaml 文件中。
 
 不带任何参数运行时，显示当前配置。`,
@@ -45,6 +46,10 @@ var configCmd = &cobra.Command{
 			viper.Set("search_api_key", searchAPIKey)
 			changed = true
 		}
+		if language != "" {
+			viper.Set("language", language)
+			changed = true
+		}
 
 		if changed {
 			if err := viper.WriteConfig(); err != nil {
@@ -53,15 +58,15 @@ var configCmd = &cobra.Command{
 					home, _ := os.UserHomeDir()
 					cfgPath := filepath.Join(home, ".shell-mate.yaml")
 					if err := viper.WriteConfigAs(cfgPath); err != nil {
-						fmt.Fprintf(os.Stderr, "写入配置文件失败: %s\n", err)
+						fmt.Fprintf(os.Stderr, t("config.write_err")+"\n", err)
 						os.Exit(1)
 					}
 				} else {
-					fmt.Fprintf(os.Stderr, "写入配置文件失败: %s\n", err)
+					fmt.Fprintf(os.Stderr, t("config.write_err")+"\n", err)
 					os.Exit(1)
 				}
 			}
-			fmt.Println("配置已保存到 ~/.shell-mate.yaml")
+			fmt.Println(t("config.saved"))
 		} else {
 			printConfig()
 		}
@@ -70,17 +75,22 @@ var configCmd = &cobra.Command{
 
 // printConfig 打印当前所有配置项（敏感信息脱敏显示）
 func printConfig() {
-	fmt.Println("当前配置 (~/.shell-mate.yaml):")
-	fmt.Printf("  API_KEY        : %s\n", maskValue(viper.GetString("api_key")))
-	fmt.Printf("  API_BASE_URL   : %s\n", viper.GetString("api_base_url"))
-	fmt.Printf("  MODEL_NAME     : %s\n", viper.GetString("model_name"))
-	fmt.Printf("  SEARCH_API_KEY : %s\n", maskValue(viper.GetString("search_api_key")))
+	fmt.Println(t("config.title"))
+	fmt.Printf(t("config.api_key")+"\n", maskValue(viper.GetString("api_key")))
+	fmt.Printf(t("config.api_base")+"\n", viper.GetString("api_base_url"))
+	fmt.Printf(t("config.model_name")+"\n", viper.GetString("model_name"))
+	fmt.Printf(t("config.search_key")+"\n", maskValue(viper.GetString("search_api_key")))
+	lang := viper.GetString("language")
+	if lang == "" {
+		lang = "zh (默认)"
+	}
+	fmt.Printf(t("config.language")+"\n", lang)
 }
 
 // maskValue 对敏感值进行脱敏处理，仅显示首尾各 4 个字符
 func maskValue(v string) string {
 	if v == "" {
-		return "(未设置)"
+		return t("config.unset")
 	}
 	if len(v) <= 8 {
 		return strings.Repeat("*", len(v))
@@ -93,6 +103,7 @@ func init() {
 	configCmd.Flags().StringVarP(&apiBaseURL, "api-base-url", "b", "", "设置 API 端点地址 (默认: https://api.deepseek.com)")
 	configCmd.Flags().StringVarP(&modelName, "model-name", "m", "", "设置模型名称 (默认: deepseek-v4-flash)")
 	configCmd.Flags().StringVarP(&searchAPIKey, "search-api-key", "s", "", "设置搜索 API Key (Tavily/Serper)")
+	configCmd.Flags().StringVarP(&language, "language", "l", "", "设置界面语言: zh (中文) 或 en (英文)")
 
 	rootCmd.AddCommand(configCmd)
 }
