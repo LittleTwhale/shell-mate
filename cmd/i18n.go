@@ -59,6 +59,11 @@ var messages = map[Lang]map[string]string{
 		"root.llm_fail":       "调用 AI 失败: %v",
 		"root.home_err":       "无法获取用户主目录:",
 
+		// 请求中 spinner 提示（用于旋转动画）
+		"root.llm_calling":     "正在请求 AI 翻译...",
+		"root.search_spin":     "遇到复杂指令，正在联网搜索...",
+		"root.search_spin_done": "搜索完成，正在重新生成命令...",
+
 		// Agentic 搜索（阶段 5 慢路径）
 		"root.search_start":    "\n[i] 遇到复杂指令，正在联网搜索解决方案...",
 		"root.search_done":     "[✓] 搜索完成，正在基于搜索结果重新生成命令...\n",
@@ -110,6 +115,11 @@ var messages = map[Lang]map[string]string{
 		"root.config_missing": "Error: Please set API_KEY first, run: sm config -k <your-api-key>",
 		"root.llm_fail":       "AI call failed: %v",
 		"root.home_err":       "Cannot get user home directory:",
+
+		// Spinner messages (for spinning animation)
+		"root.llm_calling":     "Requesting AI translation...",
+		"root.search_spin":     "Complex request, searching the web...",
+		"root.search_spin_done": "Search done, regenerating command...",
 
 		// Agentic search (Phase 5 slow path)
 		"root.search_start":    "\n[i] Complex request detected, searching the web for solutions...",

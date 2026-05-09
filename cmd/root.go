@@ -40,47 +40,70 @@ var rootCmd = &cobra.Command{
 		apiBaseURL := viper.GetString("api_base_url")
 		modelName := viper.GetString("model_name")
 
-		// 收集系统上下文并调用 LLM
+		// 收集系统上下文
 		context := llm.GatherContext()
-		fmt.Printf("正在请求 AI 翻译: %s\n\n", args[0])
 
+		// 第一次 LLM 调用 — 启动旋转动画提供可视化反馈
+		sp := startSpinner(fmt.Sprintf("%s %s", t("root.llm_calling"), args[0]))
 		resp, err := llm.CallLLM(apiBaseURL, apiKey, modelName, context, args[0])
 		if err != nil {
+			sp.stop("")
 			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err)
 			os.Exit(1)
 		}
 
-		// 如果 LLM 需要搜索但无法直接给出命令，进入慢路径（阶段 5）
-		if resp.NeedSearch && resp.Cmd == "" {
-			// 打印联网搜索提示
-			fmt.Print(t("root.search_start"))
+		// 保存原始响应作为回退（当 need_search 为 true 但仍可能有部分命令时）
+		fallbackResp := resp
+
+		// 慢路径：LLM 表示需要联网搜索（仅需 need_search 为 true 即触发）
+		if resp.NeedSearch {
+			// 更新 spinner 为搜索状态
+			sp.update(t("root.search_spin"))
 
 			// 使用用户原始描述作为关键词调用搜索 API
 			searchResults, searchErr := search.Search(args[0], 3)
 			if searchErr != nil {
+				sp.stop("")
 				fmt.Fprintf(os.Stderr, t("root.search_fail")+"\n", searchErr)
-				// 搜索失败时，如果原始响应有解释但无命令，提示回退
+				// 搜索失败时使用第一次调用的结果作为回退
 				if resp.Cmd == "" {
 					fmt.Println(t("root.search_fallback"))
+				} else {
+					// 有 cmd 就继续用，但提示搜索失败
+					fmt.Fprintln(os.Stderr, t("root.search_fallback"))
 				}
 			}
 
 			// 搜索成功时，基于搜索结果发起第二次 LLM 调用
 			if searchResults != nil && len(searchResults) > 0 {
-				fmt.Print(t("root.search_done"))
+				sp.update(t("root.search_spin_done"))
 				flatResults := search.FlattenResults(searchResults)
 				resp2, err2 := llm.CallLLMWithSearch(apiBaseURL, apiKey, modelName, context, args[0], flatResults)
 				if err2 != nil {
+					sp.stop("")
 					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err2)
 					os.Exit(1)
 				}
 
-				// 二次调用后仍为 need_search，提示用户
+				// 如果二次调用后仍标记 need_search，给用户一个提示
 				if resp2.NeedSearch {
+					sp.stop("")
 					fmt.Println(t("root.search_still"))
 				}
-				resp = resp2 // 使用二次搜索结果
+				resp = resp2
+			} else {
+				// 搜索无结果，使用第一次调用结果
+				resp = fallbackResp
 			}
+		}
+
+		// 停止旋转动画
+		sp.stop("")
+
+		// 最终检查：LLM 未能生成有效命令时退出
+		if resp.Cmd == "" {
+			fmt.Fprintln(os.Stderr, "AI 无法生成有效命令，请尝试用不同方式描述您的需求。")
+			os.Exit(1)
 		}
 
 		// 检查命令是否包含高危关键词，在展示菜单前进行安全扫描
