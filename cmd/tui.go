@@ -11,7 +11,8 @@ import (
 
 // showTUI 显示交互式选择菜单，让用户确认是否执行命令
 // 选项 e（解释）会打印解释后重新展示菜单，形成循环
-func showTUI(cmdStr, explain string) {
+// dangerous 为 true 时，选择 [y] 不会直接执行，而是弹出 YES 确认输入框
+func showTUI(cmdStr, explain string, dangerous bool) {
 	for {
 		var choice string
 
@@ -36,6 +37,12 @@ func showTUI(cmdStr, explain string) {
 
 		switch choice {
 		case "y":
+			// 高危命令需要输入 YES 确认，禁止直接执行
+			if dangerous {
+				if !confirmDangerous() {
+					continue // 用户未输入 YES，返回菜单重新选择
+				}
+			}
 			executeCommand(cmdStr)
 			return
 		case "n":

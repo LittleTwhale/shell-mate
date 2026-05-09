@@ -56,8 +56,14 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
+		// 检查命令是否包含高危关键词，在展示菜单前进行安全扫描
+		dangerous := isDangerous(resp.Cmd)
+		if dangerous {
+			printDangerWarning(resp.Cmd)
+		}
+
 		// 调用交互式 TUI 菜单，让用户选择执行/取消/解释
-		showTUI(resp.Cmd, resp.Explain)
+		showTUI(resp.Cmd, resp.Explain, dangerous)
 	},
 }
 
