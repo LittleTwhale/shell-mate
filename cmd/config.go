@@ -90,8 +90,8 @@ func maskValue(v string) string {
 
 func init() {
 	configCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "设置 LLM API Key")
-	configCmd.Flags().StringVarP(&apiBaseURL, "api-base-url", "b", "", "设置 API 端点地址 (默认: https://api.openai.com/v1)")
-	configCmd.Flags().StringVarP(&modelName, "model-name", "m", "", "设置模型名称 (默认: gpt-4o-mini)")
+	configCmd.Flags().StringVarP(&apiBaseURL, "api-base-url", "b", "", "设置 API 端点地址 (默认: https://api.deepseek.com)")
+	configCmd.Flags().StringVarP(&modelName, "model-name", "m", "", "设置模型名称 (默认: deepseek-v4-flash)")
 	configCmd.Flags().StringVarP(&searchAPIKey, "search-api-key", "s", "", "设置搜索 API Key (Tavily/Serper)")
 
 	rootCmd.AddCommand(configCmd)

@@ -49,9 +49,15 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 输出翻译结果
-		fmt.Printf("命令: %s\n", resp.Cmd)
-		fmt.Printf("解释: %s\n", resp.Explain)
+		// 如果 LLM 需要搜索但无法直接给出命令（慢路径，阶段 5 实现）
+		if resp.NeedSearch && resp.Cmd == "" {
+			fmt.Printf("需要联网搜索以获取准确结果: %s\n", resp.Explain)
+			fmt.Println("联网搜索功能将在后续版本中开放。")
+			os.Exit(0)
+		}
+
+		// 调用交互式 TUI 菜单，让用户选择执行/取消/解释
+		showTUI(resp.Cmd, resp.Explain)
 	},
 }
 
@@ -83,8 +89,8 @@ func initConfig() {
 	}
 
 	// 设置默认值
-	viper.SetDefault("api_base_url", "https://api.openai.com/v1")
-	viper.SetDefault("model_name", "gpt-4o-mini")
+	viper.SetDefault("api_base_url", "https://api.deepseek.com")
+	viper.SetDefault("model_name", "deepseek-v4-flash")
 
 	viper.AutomaticEnv()
 
