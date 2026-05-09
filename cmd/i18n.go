@@ -57,8 +57,14 @@ var messages = map[Lang]map[string]string{
 		// root.go
 		"root.config_missing": "错误: 请先设置 API_KEY，运行: sm config -k <your-api-key>",
 		"root.llm_fail":       "调用 AI 失败: %v",
-		"root.search_future":  "联网搜索功能将在后续版本中开放。",
 		"root.home_err":       "无法获取用户主目录:",
+
+		// Agentic 搜索（阶段 5 慢路径）
+		"root.search_start":    "\n[i] 遇到复杂指令，正在联网搜索解决方案...",
+		"root.search_done":     "[✓] 搜索完成，正在基于搜索结果重新生成命令...\n",
+		"root.search_fail":     "[✗] 联网搜索失败: %v\n将使用 LLM 的直接回答作为备选。",
+		"root.search_fallback": "[i] 搜索无结果，使用 LLM 直接回答。",
+		"root.search_still":    "[!] 二次调用后 LLM 仍无法给出确切命令，以下是当前最佳结果：",
 	},
 	LangEN: {
 		// TUI interactive menu
@@ -103,8 +109,14 @@ var messages = map[Lang]map[string]string{
 		// root.go
 		"root.config_missing": "Error: Please set API_KEY first, run: sm config -k <your-api-key>",
 		"root.llm_fail":       "AI call failed: %v",
-		"root.search_future":  "Web search will be available in a future version.",
 		"root.home_err":       "Cannot get user home directory:",
+
+		// Agentic search (Phase 5 slow path)
+		"root.search_start":    "\n[i] Complex request detected, searching the web for solutions...",
+		"root.search_done":     "[✓] Search complete, regenerating command based on search results...\n",
+		"root.search_fail":     "[✗] Web search failed: %v\nFalling back to LLM's direct answer.",
+		"root.search_fallback": "[i] No search results found, using LLM direct answer.",
+		"root.search_still":    "[!] LLM still uncertain after search, here is the best attempt:",
 	},
 }
 

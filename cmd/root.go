@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"shell-mate/llm"
+	"shell-mate/search"
 )
 
 var cfgFile string
@@ -49,11 +50,37 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 如果 LLM 需要搜索但无法直接给出命令（慢路径，阶段 5 实现）
+		// 如果 LLM 需要搜索但无法直接给出命令，进入慢路径（阶段 5）
 		if resp.NeedSearch && resp.Cmd == "" {
-			fmt.Printf("需要联网搜索以获取准确结果: %s\n", resp.Explain)
-			fmt.Println(t("root.search_future"))
-			os.Exit(0)
+			// 打印联网搜索提示
+			fmt.Print(t("root.search_start"))
+
+			// 使用用户原始描述作为关键词调用搜索 API
+			searchResults, searchErr := search.Search(args[0], 3)
+			if searchErr != nil {
+				fmt.Fprintf(os.Stderr, t("root.search_fail")+"\n", searchErr)
+				// 搜索失败时，如果原始响应有解释但无命令，提示回退
+				if resp.Cmd == "" {
+					fmt.Println(t("root.search_fallback"))
+				}
+			}
+
+			// 搜索成功时，基于搜索结果发起第二次 LLM 调用
+			if searchResults != nil && len(searchResults) > 0 {
+				fmt.Print(t("root.search_done"))
+				flatResults := search.FlattenResults(searchResults)
+				resp2, err2 := llm.CallLLMWithSearch(apiBaseURL, apiKey, modelName, context, args[0], flatResults)
+				if err2 != nil {
+					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err2)
+					os.Exit(1)
+				}
+
+				// 二次调用后仍为 need_search，提示用户
+				if resp2.NeedSearch {
+					fmt.Println(t("root.search_still"))
+				}
+				resp = resp2 // 使用二次搜索结果
+			}
 		}
 
 		// 检查命令是否包含高危关键词，在展示菜单前进行安全扫描

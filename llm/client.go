@@ -17,7 +17,7 @@ type LLMResponse struct {
 	NeedSearch bool   `json:"need_search"` // 是否需要联网搜索
 }
 
-// systemPrompt 约束 LLM 严格按 JSON 格式返回的提示词
+// systemPrompt 约束 LLM 严格按 JSON 格式返回的提示词（快路径）
 const systemPrompt = `你是一个 Shell 命令翻译助手。用户会用自然语言描述操作需求，你需要将其翻译成精确的 Shell 命令。
 
 你必须严格按以下 JSON 格式返回，不要包含 Markdown 代码块标记（不要用反引号包裹），仅输出纯 JSON：
@@ -34,13 +34,50 @@ const systemPrompt = `你是一个 Shell 命令翻译助手。用户会用自然
 3. cmd 必须是在当前操作系统环境下可以直接执行的命令。
 4. explain 必须使用中文。`
 
-// CallLLM 调用 LLM API，将用户的自然语言请求翻译为 Shell 命令
+// searchSystemPrompt 用于慢路径（第二次 LLM 调用）：要求模型基于搜索结果生成命令
+const searchSystemPrompt = `你是一个 Shell 命令翻译助手。用户会用自然语言描述操作需求，你需要将其翻译成精确的 Shell 命令。
+
+你现在已经拥有来自网络搜索的相关参考资料。请仔细阅读搜索结果，提取正确的命令语法和参数，然后生成准确的 Shell 命令。
+
+你必须严格按以下 JSON 格式返回，不要包含 Markdown 代码块标记（不要用反引号包裹），仅输出纯 JSON：
+
+{
+  "cmd": "基于搜索结果生成的精确 shell 命令",
+  "explain": "用中文简明扼要地解释该命令的含义和参数",
+  "need_search": false
+}
+
+重要规则：
+1. 你必须基于搜索结果中的信息来构造命令，不要凭空猜测。
+2. cmd 必须是在当前操作系统环境下可以直接执行的命令。
+3. need_search 必须设置为 false，因为这是最终响应。
+4. 如果搜索结果仍然不足以构造准确的命令，请在 cmd 中给出最佳尝试，并在 explain 中说明不确定之处。
+5. explain 必须使用中文。`
+
+// CallLLM 调用 LLM API，将用户的自然语言请求翻译为 Shell 命令（快路径）
 // apiBaseURL: API 端点地址（如 https://api.openai.com/v1 或 https://api.deepseek.com）
 // apiKey: API 密钥
 // modelName: 模型名称（如 gpt-4o-mini、deepseek-v4-flash）
 // context: GatherContext() 收集的系统环境信息
 // userQuery: 用户的自然语言请求
 func CallLLM(apiBaseURL string, apiKey string, modelName string, context string, userQuery string) (*LLMResponse, error) {
+	userMsg := fmt.Sprintf("以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s", context, userQuery)
+	return callLLMInternal(apiBaseURL, apiKey, modelName, systemPrompt, userMsg)
+}
+
+// CallLLMWithSearch 调用 LLM API 并传入网络搜索结果，让模型基于搜索结果生成命令（慢路径）
+// searchResults: FlattenResults() 产出的搜索结果文本摘要
+func CallLLMWithSearch(apiBaseURL string, apiKey string, modelName string, context string, userQuery string, searchResults string) (*LLMResponse, error) {
+	userMsg := fmt.Sprintf(
+		"以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s\n\n"+
+			"以下是从网络上搜索到的相关参考资料，请根据这些结果构造准确的命令：\n\n%s",
+		context, userQuery, searchResults,
+	)
+	return callLLMInternal(apiBaseURL, apiKey, modelName, searchSystemPrompt, userMsg)
+}
+
+// callLLMInternal LLM 调用的内部实现，发送请求并解析 JSON 响应
+func callLLMInternal(apiBaseURL string, apiKey string, modelName string, systemPrompt string, userMessage string) (*LLMResponse, error) {
 	// 拼接完整的 Chat Completions 端点
 	apiURL := strings.TrimRight(apiBaseURL, "/") + "/chat/completions"
 
@@ -48,7 +85,7 @@ func CallLLM(apiBaseURL string, apiKey string, modelName string, context string,
 		Model: modelName,
 		Messages: []chatMessage{
 			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: fmt.Sprintf("以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s", context, userQuery)},
+			{Role: "user", Content: userMessage},
 		},
 		Temperature: 0.1, // 低温度以保证输出稳定
 	}
