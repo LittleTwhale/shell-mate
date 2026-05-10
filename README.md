@@ -1,0 +1,229 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go" alt="Go Version">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform">
+</p>
+
+<h1 align="center">🐚 Shell Mate</h1>
+<p align="center"><strong>自然语言 → Shell 命令的即时翻译器</strong></p>
+<p align="center"><em>Instant Natural Language to Shell Command Translator</em></p>
+
+---
+
+## ✨ 核心特性 | Core Features
+
+<table>
+<tr>
+<td width="50%">
+
+### 🔍 环境感知 | Context-Aware
+自动收集操作系统、Shell 类型、当前目录文件列表，让 AI 生成的命令精准适配你的环境。
+
+### 🎨 交互式 TUI | Interactive TUI
+基于 Charmbracelet Huh 的美观终端菜单，生成命令后可选择 **执行 / 取消 / 解释**。
+
+### 🛡️ 安全护栏 | Safety Guardrails
+自动检测 `rm -rf`、`mkfs`、`dd` 等 30+ 种危险操作，触发红色警告框并强制输入 `YES` 二次确认。
+
+### 🧠 Agentic 智能搜索 | Agentic Search
+遇到云平台 CLI（AWS/GCloud/Azure）、生僻工具等不确定请求时，自动联网搜索最新文档，杜绝 AI 幻觉。
+
+### 🌐 多语言支持 | Multi-Language
+一键切换中英文界面：`sm config -l en`
+
+</td>
+</tr>
+</table>
+
+---
+
+## 📦 极速安装 | Quick Install
+
+### 前置条件
+- **Go 1.26+** 环境
+- 一个兼容 OpenAI API 的 LLM 服务（推荐 [DeepSeek](https://platform.deepseek.com)，免费注册即用）
+
+### 方式一：源码编译
+
+```bash
+# 克隆仓库
+git clone https://github.com/LittleTwhale/shell-mate.git
+cd shell-mate
+
+# 编译
+go build -o sm .
+
+# (可选) 移动到 PATH 目录
+sudo mv sm /usr/local/bin/      # macOS / Linux
+# 或手动将 sm.exe 所在目录添加到 Windows PATH
+```
+
+### 方式二：Go Install
+
+```bash
+go install github.com/LittleTwhale/shell-mate@latest
+```
+
+### 配置 API Key
+
+```bash
+# 设置 LLM API 密钥（以 DeepSeek 为例，兼容所有 OpenAI 格式 API）
+sm config -k sk-your-api-key-here
+
+# 也可自定义 API 端点和模型
+sm config -b https://api.deepseek.com
+sm config -m deepseek-v4-flash
+
+# 查看配置
+sm config
+```
+
+配置文件保存在 `~/.shell-mate.yaml`，也支持环境变量 `SHELL_MATE_API_KEY`。
+
+---
+
+## 🚀 使用示例 | Examples
+
+### 基础翻译
+
+```bash
+$ sm 列出当前目录下最大的 5 个文件
+
+# 输出菜单:
+# ── 是否执行此命令? ──
+# 命令: ls -lhS | head -6
+#   [y] 执行 (Execute)
+#   [n] 取消 (Cancel)
+#   [e] 解释 (Explain)
+```
+
+### 触发危险拦截
+
+```bash
+$ sm 递归删除当前目录所有 .log 文件
+
+╔══════════════════════════════════════════════════════════════╗
+║  ⚠  严重安全警告：检测到高危命令操作！                       ║
+╠══════════════════════════════════════════════════════════════╣
+║  命令: rm -rf *.log                                          ║
+║  该命令可能对您的系统造成不可逆的损害！                        ║
+║  请仔细确认无误后，输入 YES 以继续。                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+请输入大写的 YES 以确认执行此高危命令
+> ▊
+```
+
+### 触发智能搜索
+
+```bash
+$ sm 用 AWS CLI 创建一个名为 my-app-logs 的 S3 存储桶并开启版本控制
+
+⠇ 遇到复杂指令，正在联网搜索...
+[✓] 搜索完成，正在基于搜索结果重新生成命令...
+
+# 菜单:
+# 命令: aws s3api create-bucket --bucket my-app-logs \
+#       --region us-east-1 --create-bucket-configuration \
+#       LocationConstraint=us-east-1 && \
+#       aws s3api put-bucket-versioning --bucket my-app-logs \
+#       --versioning-configuration Status=Enabled
+```
+
+### 更多场景
+
+```bash
+sm 查找占用 8080 端口的进程并杀掉它
+sm 查看最近 10 条 git 提交中每个文件的修改行数统计
+sm 把当前目录所有 .jpg 文件批量重命名为序号格式
+sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
+```
+
+---
+
+## ⚙️ 完整配置 | Full Configuration
+
+| 命令 | 说明 | Description |
+|---|---|---|
+| `sm config -k <key>` | 设置 LLM API Key | Set API key |
+| `sm config -b <url>` | 设置 API 端点 | Set API base URL |
+| `sm config -m <name>` | 设置模型名称 | Set model name |
+| `sm config -s <key>` | 设置搜索 API Key（预留） | Set search API key (reserved) |
+| `sm config -l zh\|en` | 切换界面语言 | Switch UI language |
+| `sm config` | 查看当前配置 | Show current config |
+
+---
+
+## 🏗️ 工作流程 | How It Works
+
+```
+用户输入自然语言
+       │
+       ▼
+┌─────────────────┐
+│  收集系统上下文   │  OS / Shell / 目录列表
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  LLM 快路径翻译  │  常见操作 → 直接返回命令
+└────────┬────────┘
+         │ need_search = true?
+         ▼
+┌─────────────────┐
+│  联网搜索 + LLM  │  云平台 CLI / 生僻工具 → 搜索文档后生成
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  安全护栏扫描    │  检测 30+ 种危险关键词
+└────────┬────────┘
+         ▼
+┌─────────────────┐
+│  交互式 TUI 菜单 │  执行 / 取消 / 解释
+└─────────────────┘
+```
+
+---
+
+## 📁 项目结构 | Project Structure
+
+```
+shell-mate/
+├── main.go              # 入口函数
+├── cmd/
+│   ├── root.go          # 根命令（核心流程：LLM → Search → Guard → TUI）
+│   ├── config.go        # config 子命令
+│   ├── guard.go         # 安全护栏（危险关键词检测 + YES 确认）
+│   ├── i18n.go          # 多语言翻译表
+│   ├── spinner.go       # 终端旋转动画组件
+│   └── tui.go           # 交互式选择菜单 + 命令执行
+├── llm/
+│   ├── client.go        # LLM API 客户端 + 系统提示词
+│   └── context.go       # 系统环境信息收集
+└── search/
+    ├── search.go        # DuckDuckGo / Bing 搜索
+    └── search_test.go   # 搜索模块测试
+```
+
+---
+
+## 🤝 贡献 | Contributing
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feature/amazing-feature`
+3. 提交改动：`git commit -m 'feat: add amazing feature'`
+4. 推送分支：`git push origin feature/amazing-feature`
+5. 发起 Pull Request
+
+---
+
+## 📄 许可 | License
+
+MIT © [Whale Chen](https://github.com/LittleTwhale)
+
+---
+
+<p align="center">
+  <sub>Built with Go · Charmbracelet Huh · Cobra · Viper</sub>
+</p>
