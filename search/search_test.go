@@ -30,7 +30,7 @@ func TestFlattenResults(t *testing.T) {
 		{Snippet: "无标题摘要"},
 	}
 
-	flattened := FlattenResults(results)
+	flattened := FlattenResults(results, "zh")
 	if flattened == "" {
 		t.Error("FlattenResults 不应返回空字符串")
 	}

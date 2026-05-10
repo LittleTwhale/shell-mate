@@ -16,15 +16,18 @@ var cfgFile string
 // rootCmd 是 shell-mate 的根命令，接收自然语言描述并翻译为 Shell 命令
 var rootCmd = &cobra.Command{
 	Use:   "sm [自然语言描述]",
-	Short: "shell-mate - 终端命令行 AI 助手",
+	Short: "shell-mate — 终端命令行 AI 助手",
 	Long: `shell-mate 是一个基于 Go 开发的终端命令行 AI 助手，
-能将你的自然语言请求直接翻译成可执行的 Shell 命令。`,
+能将你的自然语言请求即时翻译成可执行的 Shell 命令。`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cobraCmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			cobraCmd.Help()
 			return
 		}
+
+		// 获取当前语言设置
+		lang := CurrentLang()
 
 		// 读取 API 密钥，兼容旧的 openai_api_key 配置项
 		apiKey := viper.GetString("api_key")
@@ -41,11 +44,11 @@ var rootCmd = &cobra.Command{
 		modelName := viper.GetString("model_name")
 
 		// 收集系统上下文
-		context := llm.GatherContext()
+		context := llm.GatherContext(lang)
 
 		// 第一次 LLM 调用 — 启动旋转动画提供可视化反馈
 		sp := startSpinner(fmt.Sprintf("%s %s", t("root.llm_calling"), args[0]))
-		resp, err := llm.CallLLM(apiBaseURL, apiKey, modelName, context, args[0])
+		resp, err := llm.CallLLM(apiBaseURL, apiKey, modelName, context, args[0], lang)
 		if err != nil {
 			sp.stop("")
 			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err)
@@ -77,8 +80,8 @@ var rootCmd = &cobra.Command{
 			// 搜索成功时，基于搜索结果发起第二次 LLM 调用
 			if searchResults != nil && len(searchResults) > 0 {
 				sp.update(t("root.search_spin_done"))
-				flatResults := search.FlattenResults(searchResults)
-				resp2, err2 := llm.CallLLMWithSearch(apiBaseURL, apiKey, modelName, context, args[0], flatResults)
+				flatResults := search.FlattenResults(searchResults, lang)
+				resp2, err2 := llm.CallLLMWithSearch(apiBaseURL, apiKey, modelName, context, args[0], flatResults, lang)
 				if err2 != nil {
 					sp.stop("")
 					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err2)
@@ -102,7 +105,7 @@ var rootCmd = &cobra.Command{
 
 		// 最终检查：LLM 未能生成有效命令时退出
 		if resp.Cmd == "" {
-			fmt.Fprintln(os.Stderr, "AI 无法生成有效命令，请尝试用不同方式描述您的需求。")
+			fmt.Fprintln(os.Stderr, t("root.llm_nocmd"))
 			os.Exit(1)
 		}
 
@@ -156,4 +159,12 @@ func initConfig() {
 			fmt.Fprintf(os.Stderr, t("config.read_err")+"\n", err)
 		}
 	}
+
+	// 根据语言设置动态更新 Cobra 命令元数据
+	rootCmd.Use = t("root.use")
+	rootCmd.Short = t("root.short")
+	rootCmd.Long = t("root.long")
+
+	configCmd.Short = t("config.short")
+	configCmd.Long = t("config.long")
 }

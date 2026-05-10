@@ -15,7 +15,43 @@ const (
 // messages 多语言翻译映射表
 var messages = map[Lang]map[string]string{
 	LangZH: {
-		// TUI 交互菜单
+		// ========== Cobra 命令元数据 ==========
+		"root.use":   "sm [自然语言描述]",
+		"root.short": "shell-mate — 终端命令行 AI 助手",
+		"root.long": `shell-mate 是一个基于 Go 开发的终端命令行 AI 助手，
+能将你的自然语言请求即时翻译成可执行的 Shell 命令。
+
+━━━ 核心特性 ━━━
+  ◆  环境感知     自动收集操作系统、Shell 类型、当前目录文件列表等上下文
+  ◆  交互式 TUI    生成命令后提供美观的终端菜单，支持 [执行/取消/解释]
+  ◆  危险命令拦截  检测 rm -rf、mkfs、dd 等危险操作，强制输入 YES 二次确认
+  ◆  智能搜索      遇到云平台 CLI、生僻工具等不确定请求时，自动联网搜索防幻觉
+  ◆  多语言支持    通过 sm config -l 自由切换中英文界面
+
+━━━ 使用示例 ━━━
+  sm 列出当前目录下最大的 5 个文件
+  sm 查找并杀死占用 8080 端口的进程
+  sm 用 AWS CLI 创建一个 S3 存储桶       （触发智能搜索）
+  sm 递归删除所有 .log 文件               （触发危险拦截）
+  sm 查看 git 最近 10 条提交的统计信息
+
+━━━ 配置指南 ━━━
+  sm config -k <API_KEY>    设置 LLM API 密钥（必填）
+  sm config -b <BASE_URL>   设置 API 端点地址（默认 https://api.deepseek.com）
+  sm config -m <MODEL>      设置模型名称（默认 deepseek-v4-flash）
+  sm config -l <zh|en>      切换界面语言
+  sm config                 查看当前配置
+
+━━━ 支持的环境变量 ━━━
+  SHELL_MATE_API_KEY        等同于 sm config -k`,
+
+		"config.short": "管理 shell-mate 配置项",
+		"config.long": `设置 API_KEY、API_BASE_URL、MODEL_NAME、SEARCH_API_KEY、LANGUAGE 等配置项，
+并将它们持久化保存到 ~/.shell-mate.yaml 文件中。
+
+不带任何参数运行时，显示当前配置。`,
+
+		// ========== TUI 交互菜单 ==========
 		"tui.title":          "是否执行此命令?",
 		"tui.description":    "命令: %s",
 		"tui.opt_execute":    "[y] 执行 (Execute)",
@@ -23,6 +59,7 @@ var messages = map[Lang]map[string]string{
 		"tui.opt_explain":    "[e] 解释 (Explain)",
 		"tui.cancelled":      "已取消。",
 		"tui.explain_prefix": "\n命令解释: %s\n\n",
+		"tui.run_error":      "TUI 运行失败: %v",
 
 		// 安全护栏 — 警告框
 		"guard.warning_title":  "严重安全警告：检测到高危命令操作！",
@@ -58,6 +95,10 @@ var messages = map[Lang]map[string]string{
 		"root.config_missing": "错误: 请先设置 API_KEY，运行: sm config -k <your-api-key>",
 		"root.llm_fail":       "调用 AI 失败: %v",
 		"root.home_err":       "无法获取用户主目录:",
+		"root.llm_nocmd":      "AI 无法生成有效命令，请尝试用不同方式描述您的需求。",
+
+		// 命令执行
+		"exec.run_error": "命令执行失败: %v",
 
 		// 请求中 spinner 提示（用于旋转动画）
 		"root.llm_calling":     "正在请求 AI 翻译...",
@@ -72,7 +113,43 @@ var messages = map[Lang]map[string]string{
 		"root.search_still":    "[!] 二次调用后 LLM 仍无法给出确切命令，以下是当前最佳结果：",
 	},
 	LangEN: {
-		// TUI interactive menu
+		// ========== Cobra command metadata ==========
+		"root.use":   "sm [natural language description]",
+		"root.short": "shell-mate — CLI AI Assistant",
+		"root.long": `shell-mate is a Go-based CLI AI assistant that instantly
+translates natural language into executable Shell commands.
+
+━━━ Core Features ━━━
+  ◆  Context-Aware      Automatically collects OS, Shell type, and directory listing
+  ◆  Interactive TUI     Beautiful terminal menu with execute / cancel / explain options
+  ◆  Safety Guardrails   Detects dangerous commands (rm -rf, mkfs, dd, etc.) with YES confirmation
+  ◆  Agentic Search      Auto-searches the web for complex/uncertain requests to prevent hallucination
+  ◆  Multi-Language      Switch between Chinese and English UI via sm config -l
+
+━━━ Examples ━━━
+  sm list the 5 largest files in current directory
+  sm find and kill the process using port 8080
+  sm create an S3 bucket with AWS CLI          (triggers agentic search)
+  sm recursively delete all .log files          (triggers safety guard)
+  sm show git commit stats for the last 10 commits
+
+━━━ Configuration ━━━
+  sm config -k <API_KEY>    Set LLM API key (required)
+  sm config -b <BASE_URL>   Set API endpoint (default https://api.deepseek.com)
+  sm config -m <MODEL>      Set model name (default deepseek-v4-flash)
+  sm config -l <zh|en>      Switch UI language
+  sm config                 Show current configuration
+
+━━━ Environment Variables ━━━
+  SHELL_MATE_API_KEY        Equivalent to sm config -k`,
+
+		"config.short": "Manage shell-mate configuration",
+		"config.long": `Set API_KEY, API_BASE_URL, MODEL_NAME, SEARCH_API_KEY, LANGUAGE
+and persist them to ~/.shell-mate.yaml.
+
+Running without arguments displays current configuration.`,
+
+		// ========== TUI interactive menu ==========
 		"tui.title":          "Execute this command?",
 		"tui.description":    "Command: %s",
 		"tui.opt_execute":    "[y] Execute",
@@ -80,6 +157,7 @@ var messages = map[Lang]map[string]string{
 		"tui.opt_explain":    "[e] Explain",
 		"tui.cancelled":      "Cancelled.",
 		"tui.explain_prefix": "\nExplanation: %s\n\n",
+		"tui.run_error":      "TUI error: %v",
 
 		// Guardrails — warning box
 		"guard.warning_title":  "CRITICAL SAFETY WARNING: Dangerous command detected!",
@@ -115,6 +193,10 @@ var messages = map[Lang]map[string]string{
 		"root.config_missing": "Error: Please set API_KEY first, run: sm config -k <your-api-key>",
 		"root.llm_fail":       "AI call failed: %v",
 		"root.home_err":       "Cannot get user home directory:",
+		"root.llm_nocmd":      "AI could not generate a valid command. Try rephrasing your request.",
+
+		// Command execution
+		"exec.run_error": "Command execution failed: %v",
 
 		// Spinner messages (for spinning animation)
 		"root.llm_calling":     "Requesting AI translation...",
@@ -151,4 +233,9 @@ func getCurrentLang() Lang {
 		return Lang(lang)
 	}
 	return LangZH
+}
+
+// CurrentLang 供外部包获取当前语言
+func CurrentLang() string {
+	return string(getCurrentLang())
 }

@@ -31,7 +31,7 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 		).Run()
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "TUI 运行失败: %v\n", err)
+			fmt.Fprintf(os.Stderr, t("tui.run_error")+"\n", err)
 			os.Exit(1)
 		}
 
@@ -77,6 +77,6 @@ func executeCommand(cmdStr string) {
 
 	fmt.Println()
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n命令执行失败: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\n"+t("exec.run_error")+"\n", err)
 	}
 }

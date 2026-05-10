@@ -28,6 +28,46 @@ type duckDuckGoResponse struct {
 	} `json:"RelatedTopics"`
 }
 
+// ========== 多语言格式化标签 ==========
+
+// flattenLabels 按语言存储 FlattenResults 的格式化标签
+var flattenLabels = map[string]struct {
+	resultN  string // "搜索结果 #%d:\n" / "Search result #%d:\n"
+	title    string // "标题: %s\n" / "Title: %s\n"
+	snippet  string // "摘要: %s\n" / "Snippet: %s\n"
+	source   string // "来源: %s\n" / "Source: %s\n"
+	noResult string // "（无搜索结果）" / "(no search results)"
+}{
+	"zh": {
+		resultN:  "搜索结果 #%d:\n",
+		title:    "标题: %s\n",
+		snippet:  "摘要: %s\n",
+		source:   "来源: %s\n",
+		noResult: "（无搜索结果）",
+	},
+	"en": {
+		resultN:  "Search result #%d:\n",
+		title:    "Title: %s\n",
+		snippet:  "Snippet: %s\n",
+		source:   "Source: %s\n",
+		noResult: "(no search results)",
+	},
+}
+
+// getFlattenLabels 根据语言获取格式化标签，默认为中文
+func getFlattenLabels(lang string) struct {
+	resultN  string
+	title    string
+	snippet  string
+	source   string
+	noResult string
+} {
+	if l, ok := flattenLabels[lang]; ok {
+		return l
+	}
+	return flattenLabels["zh"]
+}
+
 // Search 使用无 Key 搜索 API 搜索，返回前 N 条结果摘要
 // 优先尝试 DuckDuckGo（国际），失败后回退到 Bing（国内可达）
 func Search(query string, maxResults int) ([]SearchResult, error) {
@@ -48,24 +88,24 @@ func searchDuckDuckGo(query string, maxResults int) ([]SearchResult, error) {
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建 DuckDuckGo 请求失败: %w", err)
+		return nil, fmt.Errorf("create DuckDuckGo request failed: %w", err)
 	}
 	req.Header.Set("User-Agent", "shell-mate/1.0 (CLI AI assistant; github.com/whalechen/shell-mate)")
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("DuckDuckGo 请求失败: %w", err)
+		return nil, fmt.Errorf("DuckDuckGo request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("DuckDuckGo 返回状态码: %d", resp.StatusCode)
+		return nil, fmt.Errorf("DuckDuckGo returned status: %d", resp.StatusCode)
 	}
 
 	var ddgResp duckDuckGoResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ddgResp); err != nil {
-		return nil, fmt.Errorf("解析 DuckDuckGo 结果失败: %w", err)
+		return nil, fmt.Errorf("parse DuckDuckGo response failed: %w", err)
 	}
 
 	var results []SearchResult
@@ -97,7 +137,7 @@ func searchDuckDuckGo(query string, maxResults int) ([]SearchResult, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("DuckDuckGo 未返回相关结果")
+		return nil, fmt.Errorf("DuckDuckGo returned no relevant results")
 	}
 
 	return results, nil
@@ -110,7 +150,7 @@ func searchBing(query string, maxResults int) ([]SearchResult, error) {
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建必应请求失败: %w", err)
+		return nil, fmt.Errorf("create Bing request failed: %w", err)
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
@@ -118,22 +158,22 @@ func searchBing(query string, maxResults int) ([]SearchResult, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("必应请求失败: %w", err)
+		return nil, fmt.Errorf("Bing request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("必应返回状态码: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Bing returned status: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取必应响应失败: %w", err)
+		return nil, fmt.Errorf("read Bing response failed: %w", err)
 	}
 
 	results := parseBingHTML(string(body), maxResults)
 	if len(results) == 0 {
-		return nil, fmt.Errorf("必应搜索结果为空")
+		return nil, fmt.Errorf("Bing search returned no results")
 	}
 
 	return results, nil
@@ -239,20 +279,23 @@ func stripHTMLTags(s string) string {
 }
 
 // FlattenResults 将多条搜索结果拼接为一段纯文本，供 LLM 二次调用使用
-func FlattenResults(results []SearchResult) string {
+// lang: 当前语言 (zh/en)，决定输出标签的语言
+func FlattenResults(results []SearchResult, lang string) string {
+	labels := getFlattenLabels(lang)
+
 	if len(results) == 0 {
-		return "（无搜索结果）"
+		return labels.noResult
 	}
 
 	var s string
 	for i, r := range results {
-		s += fmt.Sprintf("搜索结果 #%d:\n", i+1)
+		s += fmt.Sprintf(labels.resultN, i+1)
 		if r.Title != "" {
-			s += fmt.Sprintf("标题: %s\n", r.Title)
+			s += fmt.Sprintf(labels.title, r.Title)
 		}
-		s += fmt.Sprintf("摘要: %s\n", r.Snippet)
+		s += fmt.Sprintf(labels.snippet, r.Snippet)
 		if r.URL != "" {
-			s += fmt.Sprintf("来源: %s\n", r.URL)
+			s += fmt.Sprintf(labels.source, r.URL)
 		}
 		s += "\n"
 	}
