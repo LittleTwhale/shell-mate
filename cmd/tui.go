@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"regexp"
 	"bytes"
 	"fmt"
 	"io"
@@ -161,4 +162,59 @@ func executeCommand(cmdStr string) (exitCode int, stderr string, err error) {
 	}
 
 	return exitCode, stderrBuf.String(), runErr
+}
+
+
+// fillPlaceholders 扫描命令中的 <...> 占位符，如果存在，则弹窗让用户填空
+func fillPlaceholders(cmdStr string) (string, error) {
+	// 匹配形如 <Server_IP>, <File_Path> 的占位符
+	re := regexp.MustCompile(`<([^>]+)>`)
+	matches := re.FindAllStringSubmatch(cmdStr, -1)
+
+	if len(matches) == 0 {
+		return cmdStr, nil // 没有占位符，直接返回原命令
+	}
+
+	// 1. 提取不重复的占位符（防止同一个变量在命令中出现多次，比如 <IP> 出现两次只需输入一次）
+	uniquePlaceholders := make(map[string]bool)
+	var placeholders []string
+	for _, m := range matches {
+		key := m[1]
+		if !uniquePlaceholders[key] {
+			uniquePlaceholders[key] = true
+			placeholders = append(placeholders, key)
+		}
+	}
+
+	// 2. 动态构造 huh 表单字段
+	var inputs []huh.Field
+	answers := make(map[string]*string)
+
+	for _, p := range placeholders {
+		val := new(string)
+		answers[p] = val
+		inputs = append(inputs, huh.NewInput().
+			Title(fmt.Sprintf(t("tui.placeholder_prompt"), p)).
+			Value(val))
+	}
+
+	// 3. 运行填空表单
+	form := huh.NewForm(
+		huh.NewGroup(inputs...).
+			Title(t("tui.placeholder_title")).
+			Description(fmt.Sprintf(t("tui.placeholder_desc"), cmdStr)),
+	)
+
+	err := form.Run()
+	if err != nil {
+		return "", err // 用户按 Esc 取消
+	}
+
+	// 4. 将用户输入替换回原命令
+	filledCmd := cmdStr
+	for _, p := range placeholders {
+		filledCmd = strings.ReplaceAll(filledCmd, "<"+p+">", *answers[p])
+	}
+
+	return filledCmd, nil
 }

@@ -77,6 +77,16 @@ var rootCmd = &cobra.Command{
 				os.Exit(1)
 			}
 
+			// 填空题交互拦截
+			filledCmd, fillErr := fillPlaceholders(resp.Cmd)
+			if fillErr != nil {
+				// 用户在填空表单处按下了 Esc 取消
+				fmt.Println(t("tui.cancelled"))
+				return
+			}
+			// 将替换完成的命令赋值回去
+			resp.Cmd = filledCmd
+
 			// 检查命令是否包含高危关键词
 			dangerous := isDangerous(resp.Cmd)
 			if dangerous {

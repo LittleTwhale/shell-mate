@@ -124,7 +124,8 @@ var prompts = map[string]promptSet{
    - 涉及你不完全确定正确性的复杂管道或多步骤操作
    即使你大体知道方向，只要对任何参数不完全确定，就应该触发搜索。诚实比给出错误命令更重要。
 3. cmd 必须是在当前操作系统环境下可以直接执行的命令。
-4. explain 必须使用中文。`,
+4. explain 必须使用中文。
+5. 如果用户的需求缺少必要的具体参数（如 IP 地址、文件路径、URL 等），**千万不要自行猜测或瞎编**，请在 cmd 中使用 <参数名> 作为占位符，例如：scp file.txt user@<Server_IP>:/tmp。`,
 
 		searchSystemPrompt: `你是一个 Shell 命令翻译助手。用户会用自然语言描述操作需求，你需要将其翻译成精确的 Shell 命令。
 
@@ -143,7 +144,8 @@ var prompts = map[string]promptSet{
 2. cmd 必须是在当前操作系统环境下可以直接执行的命令。
 3. need_search 必须设置为 false，因为这是最终响应。
 4. 如果搜索结果仍然不足以构造准确的命令，请在 cmd 中给出最佳尝试，并在 explain 中说明不确定之处。
-5. explain 必须使用中文。`,
+5. explain 必须使用中文。
+6. 如果用户的需求缺少必要的具体参数（如 IP 地址、文件路径、URL 等），**千万不要自行猜测或瞎编**，请在 cmd 中使用 <参数名> 作为占位符，例如：scp file.txt user@<Server_IP>:/tmp。`,
 
 		userMsgTmpl:       "以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s",
 		userMsgSearchTmpl: "以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s\n\n以下是从网络上搜索到的相关参考资料，请根据这些结果构造准确的命令：\n\n%s",
@@ -162,7 +164,8 @@ var prompts = map[string]promptSet{
 1. 仔细分析错误输出中的错误信息，定位根本原因。
 2. 给出的修正命令必须是可以直接执行的。
 3. 如果错误与系统环境有关（如缺少依赖、权限不足等），请在 explain 中说明。
-4. explain 必须使用中文。`,
+4. explain 必须使用中文。
+5. 如果用户的需求缺少必要的具体参数（如 IP 地址、文件路径、URL 等），**千万不要自行猜测或瞎编**，请在 cmd 中使用 <参数名> 作为占位符，例如：scp file.txt user@<Server_IP>:/tmp。`,
 	},
 	"en": {
 		systemPrompt: `You are a Shell command translator. The user describes what they want to do in natural language, and you translate it into a precise Shell command.
@@ -184,7 +187,8 @@ Important rules:
    - Complex pipelines or multi-step operations whose correctness you cannot fully verify
    Being honest and triggering a search is better than giving a wrong command.
 3. The cmd must be directly executable in the current OS environment.
-4. explain must be in English.`,
+4. explain must be in English.
+5. If the user's request lacks necessary specific parameters (such as IP addresses, file paths, URLs, etc.), **DO NOT invent or guess them**. Instead, use a placeholder in the format <Parameter_Name> in the cmd, for example: scp file.txt user@<Server_IP>:/tmp.`,
 
 		searchSystemPrompt: `You are a Shell command translator. The user describes what they want to do in natural language, and you translate it into a precise Shell command.
 
@@ -203,7 +207,8 @@ Important rules:
 2. The cmd must be directly executable in the current OS environment.
 3. need_search must be set to false, as this is the final response.
 4. If the search results are still insufficient for an accurate command, give your best attempt in cmd and note the uncertainties in explain.
-5. explain must be in English.`,
+5. explain must be in English.
+6. If the user's request lacks necessary specific parameters (such as IP addresses, file paths, URLs, etc.), **DO NOT invent or guess them**. Instead, use a placeholder in the format <Parameter_Name> in the cmd, for example: scp file.txt user@<Server_IP>:/tmp.`,
 
 		userMsgTmpl:       "Current system environment:\n\n%s\n\nUser's natural language request: %s",
 		userMsgSearchTmpl: "Current system environment:\n\n%s\n\nUser's natural language request: %s\n\nThe following reference material was found via web search; use it to construct the correct command:\n\n%s",
@@ -222,7 +227,8 @@ Important rules:
 1. Carefully analyze the error output to identify the root cause.
 2. The corrected command must be directly executable in the current OS environment.
 3. If the error is related to the system environment (missing dependencies, permission issues, etc.), note this in the explanation.
-4. explain must be in English.`,
+4. explain must be in English.
+5. If the user's request lacks necessary specific parameters (such as IP addresses, file paths, URLs, etc.), **DO NOT invent or guess them**. Instead, use a placeholder in the format <Parameter_Name> in the cmd, for example: scp file.txt user@<Server_IP>:/tmp.`,
 	},
 }
 

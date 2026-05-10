@@ -24,6 +24,7 @@ var messages = map[Lang]map[string]string{
 ━━━ 核心特性 ━━━
   ◆  环境感知     自动收集操作系统、Shell 类型、当前目录文件列表等上下文
   ◆  交互式 TUI    生成命令后提供美观的终端菜单，支持 [执行/取消/解释]
+  ◆  动态填空      当命令缺失关键参数(如 IP)时，生成占位符并弹窗安全填空
   ◆  危险命令拦截  检测 rm -rf、mkfs、dd 等危险操作，强制输入 YES 二次确认
   ◆  智能搜索      遇到云平台 CLI、生僻工具等不确定请求时，自动联网搜索防幻觉
   ◆  多语言支持    通过 sm config -l 自由切换中英文界面
@@ -31,6 +32,7 @@ var messages = map[Lang]map[string]string{
 ━━━ 使用示例 ━━━
   sm 列出当前目录下最大的 5 个文件
   sm 查找并杀死占用 8080 端口的进程
+  sm 把 readme.md 传到我的服务器上        （触发动态填空）
   sm 用 AWS CLI 创建一个 S3 存储桶       （触发智能搜索）
   sm 递归删除所有 .log 文件               （触发危险拦截）
   sm 查看 git 最近 10 条提交的统计信息
@@ -62,6 +64,9 @@ var messages = map[Lang]map[string]string{
 		"tui.cancelled":      "已取消。",
 		"tui.explain_prefix": "\n命令解释: %s\n\n",
 		"tui.run_error":      "TUI 运行失败: %v",
+		"tui.placeholder_title":  "检测到缺失参数，请补充完整",
+		"tui.placeholder_desc":   "当前命令: %s",
+		"tui.placeholder_prompt": "请输入 <%s>:",
 
 		// 纠错重试菜单
 		"tui.retry_title":       "命令执行失败，是否让 AI 尝试修正?",
@@ -134,6 +139,7 @@ translates natural language into executable Shell commands.
 ━━━ Core Features ━━━
   ◆  Context-Aware      Automatically collects OS, Shell type, and directory listing
   ◆  Interactive TUI     Beautiful terminal menu with execute / cancel / explain options
+  ◆  Interactive Fill    Auto-generates UI forms for missing parameters (e.g., IPs)
   ◆  Safety Guardrails   Detects dangerous commands (rm -rf, mkfs, dd, etc.) with YES confirmation
   ◆  Agentic Search      Auto-searches the web for complex/uncertain requests to prevent hallucination
   ◆  Multi-Language      Switch between Chinese and English UI via sm config -l
@@ -142,6 +148,7 @@ translates natural language into executable Shell commands.
   sm list the 5 largest files in current directory
   sm find and kill the process using port 8080
   sm create an S3 bucket with AWS CLI          (triggers agentic search)
+  sm upload readme.md to my remote server      (triggers interactive fill)
   sm recursively delete all .log files          (triggers safety guard)
   sm show git commit stats for the last 10 commits
 
@@ -172,6 +179,9 @@ Running without arguments displays current configuration.`,
 		"tui.cancelled":      "Cancelled.",
 		"tui.explain_prefix": "\nExplanation: %s\n\n",
 		"tui.run_error":      "TUI error: %v",
+		"tui.placeholder_title":  "Missing parameters detected, please fill them in",
+		"tui.placeholder_desc":   "Command: %s",
+		"tui.placeholder_prompt": "Enter value for <%s>:",
 
 		// Correction retry menu
 		"tui.retry_title":       "Command failed. Retry with AI correction?",
