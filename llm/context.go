@@ -9,7 +9,7 @@ import (
 
 // contextLabels 按语言存储上下文标签
 var contextLabels = map[string]struct {
-	osLabel   string // "操作系统: %s\n" / "OS: %s\n"
+	osLabel     string // "操作系统: %s\n" / "OS: %s\n"
 	shellLabel  string // "当前Shell: %s\n" / "Shell: %s\n"
 	dirLabel    string // "当前目录文件列表:\n" / "Directory listing:\n"
 	dirErrLabel string // "(无法读取目录: %v)\n" / "(cannot read directory: %v)\n"
@@ -33,7 +33,7 @@ var contextLabels = map[string]struct {
 
 // getContextLabels 根据语言获取上下文标签，默认为中文
 func getContextLabels(lang string) struct {
-	osLabel   string
+	osLabel     string
 	shellLabel  string
 	dirLabel    string
 	dirErrLabel string
@@ -57,9 +57,18 @@ func GatherContext(lang string) string {
 	// 当前使用的 Shell 程序
 	shell := os.Getenv("SHELL")
 	if shell == "" {
-		shell = "unknown"
+		if runtime.GOOS == "windows" {
+			// 启发式探测：PowerShell 环境通常带有 PSModulePath 变量
+			if os.Getenv("PSModulePath") != "" {
+				shell = "powershell"
+			} else {
+				shell = "cmd"
+			}
+		} else {
+			shell = "unknown"
+		}
 	}
-	sb.WriteString(fmt.Sprintf(labels.shellLabel, shell))
+	sb.WriteString(fmt.Sprintf("当前Shell: %s\n", shell))
 
 	// 当前工作目录下的文件列表（仅文件名，不读取内容）
 	sb.WriteString(labels.dirLabel)

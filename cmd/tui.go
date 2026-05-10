@@ -56,12 +56,16 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 }
 
 // executeCommand 执行 Shell 命令，并将 Stdout/Stderr 实时重定向到终端
-// 在 Windows 上使用 cmd /c，在 Unix 上使用 $SHELL -c
 func executeCommand(cmdStr string) {
 	var cmd *exec.Cmd
 
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/c", cmdStr)
+		// 根据环境变量智能判断使用哪个执行引擎
+		if os.Getenv("PSModulePath") != "" {
+			cmd = exec.Command("powershell", "-NoProfile", "-Command", cmdStr)
+		} else {
+			cmd = exec.Command("cmd", "/c", cmdStr)
+		}
 	} else {
 		shell := os.Getenv("SHELL")
 		if shell == "" {
