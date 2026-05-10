@@ -17,6 +17,8 @@ var (
 	apiBaseURL   string // -b, API 端点地址
 	searchAPIKey string // -s, 搜索 API 密钥（预留）
 	language     string // -l, 界面语言 (zh/en)
+	addDanger    string // 添加高危关键词
+	removeDanger string // 移除高危关键词
 )
 
 // configCmd 管理 shell-mate 的所有配置项，并持久化到 ~/.shell-mate.yaml
@@ -50,7 +52,35 @@ var configCmd = &cobra.Command{
 			viper.Set("language", language)
 			changed = true
 		}
+		// 处理添加自定义高危关键词
+		if addDanger != "" {
+			list := viper.GetStringSlice("dangerous_keywords")
+			exists := false
+			for _, v := range list {
+				if v == addDanger {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				list = append(list, addDanger)
+				viper.Set("dangerous_keywords", list)
+				changed = true
+			}
+		}
 
+		// 处理移除自定义高危关键词
+		if removeDanger != "" {
+			list := viper.GetStringSlice("dangerous_keywords")
+			newList := []string{}
+			for _, v := range list {
+				if v != removeDanger {
+					newList = append(newList, v)
+				}
+			}
+			viper.Set("dangerous_keywords", newList)
+			changed = true
+		}
 		if changed {
 			if err := viper.WriteConfig(); err != nil {
 				if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -85,6 +115,18 @@ func printConfig() {
 		lang = "zh (默认)"
 	}
 	fmt.Printf(t("config.language")+"\n", lang)
+
+	// 打印高危关键词配置
+	dangerList := viper.GetStringSlice("dangerous_keywords")
+	if len(dangerList) == 0 {
+		fmt.Printf(t("config.danger_list")+"\n", "(使用系统默认)")
+	} else {
+		displayStr := fmt.Sprintf("系统默认 + %v", dangerList)
+		if getCurrentLang() == LangEN {
+			displayStr = fmt.Sprintf("System Defaults + %v", dangerList)
+		}
+		fmt.Printf(t("config.danger_list")+"\n", displayStr)
+	}
 }
 
 // maskValue 对敏感值进行脱敏处理，仅显示首尾各 4 个字符
@@ -104,6 +146,7 @@ func init() {
 	configCmd.Flags().StringVarP(&modelName, "model-name", "m", "", "设置模型名称 (默认: deepseek-v4-flash)")
 	configCmd.Flags().StringVarP(&searchAPIKey, "search-api-key", "s", "", "设置搜索 API Key (Tavily/Serper)")
 	configCmd.Flags().StringVarP(&language, "language", "l", "", "设置界面语言: zh (中文) 或 en (英文)")
-
+	configCmd.Flags().StringVar(&addDanger, "add-danger", "", "添加自定义高危命令关键词")
+	configCmd.Flags().StringVar(&removeDanger, "remove-danger", "", "移除自定义高危命令关键词")
 	rootCmd.AddCommand(configCmd)
 }

@@ -5,11 +5,12 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/spf13/viper"
 )
 
-// dangerousKeywords 高危命令关键词黑名单
+// defaultDangerousKeywords 默认的高危命令关键词黑名单
 // 任何包含这些关键词的命令都需要额外的 YES 确认才能执行
-var dangerousKeywords = []string{
+var defaultDangerousKeywords = []string{
 	"rm -rf",
 	"rm -r ",
 	"rm -fr",
@@ -41,10 +42,27 @@ var dangerousKeywords = []string{
 	"diskpart",
 }
 
+// getDangerousKeywords 获取当前生效的高危关键词列表
+func getDangerousKeywords() []string {
+	customKeywords := viper.GetStringSlice("dangerous_keywords")
+	
+	// 如果用户没有配置自定义关键词，直接返回默认列表
+	if len(customKeywords) == 0 {
+		return defaultDangerousKeywords
+	}
+
+	// 合并默认列表和自定义列表
+	var merged []string
+	merged = append(merged, defaultDangerousKeywords...)
+	merged = append(merged, customKeywords...)
+	
+	return merged
+}
+
 // isDangerous 扫描命令是否包含高危关键词
 func isDangerous(cmd string) bool {
 	cmdLower := strings.ToLower(cmd)
-	for _, kw := range dangerousKeywords {
+	for _, kw := range getDangerousKeywords() {
 		if strings.Contains(cmdLower, kw) {
 			return true
 		}

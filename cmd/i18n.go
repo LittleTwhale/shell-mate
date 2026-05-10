@@ -36,11 +36,13 @@ var messages = map[Lang]map[string]string{
   sm 查看 git 最近 10 条提交的统计信息
 
 ━━━ 配置指南 ━━━
-  sm config -k <API_KEY>    设置 LLM API 密钥（必填）
-  sm config -b <BASE_URL>   设置 API 端点地址（默认 https://api.deepseek.com）
-  sm config -m <MODEL>      设置模型名称（默认 deepseek-v4-flash）
-  sm config -l <zh|en>      切换界面语言
-  sm config                 查看当前配置
+  sm config -k <API_KEY>            设置 LLM API 密钥（必填）
+  sm config -b <BASE_URL>           设置 API 端点地址（默认 https://api.deepseek.com）
+  sm config -m <MODEL>              设置模型名称（默认 deepseek-v4-flash）
+  sm config -l <zh|en>              切换界面语言
+  sm config --add-danger "word"     添加自定义高危拦截词
+  sm config --remove-danger "word"  移除自定义高危拦截词
+  sm config                         查看当前配置
 
 ━━━ 支持的环境变量 ━━━
   SHELL_MATE_API_KEY        等同于 sm config -k`,
@@ -86,6 +88,7 @@ var messages = map[Lang]map[string]string{
 		"config.model_name": "  MODEL_NAME     : %s",
 		"config.search_key": "  SEARCH_API_KEY : %s",
 		"config.language":   "  LANGUAGE       : %s",
+		"config.danger_list": "  DANGER_KEYWORDS: %v",
 		"config.unset":      "(未设置)",
 		"config.saved":      "配置已保存到 ~/.shell-mate.yaml",
 		"config.write_err":  "写入配置文件失败: %s",
@@ -134,11 +137,13 @@ translates natural language into executable Shell commands.
   sm show git commit stats for the last 10 commits
 
 ━━━ Configuration ━━━
-  sm config -k <API_KEY>    Set LLM API key (required)
-  sm config -b <BASE_URL>   Set API endpoint (default https://api.deepseek.com)
-  sm config -m <MODEL>      Set model name (default deepseek-v4-flash)
-  sm config -l <zh|en>      Switch UI language
-  sm config                 Show current configuration
+  sm config -k <API_KEY>                Set LLM API key (required)
+  sm config -b <BASE_URL>               Set API endpoint (default https://api.deepseek.com)
+  sm config -m <MODEL>                  Set model name (default deepseek-v4-flash)
+  sm config -l <zh|en>                  Switch UI language
+  sm config --add-danger "word"         Add a custom dangerous keyword
+  sm config --remove-danger "word"      Remove a custom dangerous keyword
+  sm config                             Show current configuration
 
 ━━━ Environment Variables ━━━
   SHELL_MATE_API_KEY        Equivalent to sm config -k`,
@@ -184,6 +189,7 @@ Running without arguments displays current configuration.`,
 		"config.model_name": "  MODEL_NAME     : %s",
 		"config.search_key": "  SEARCH_API_KEY : %s",
 		"config.language":   "  LANGUAGE       : %s",
+		"config.danger_list": "  DANGER_KEYWORDS: %v",
 		"config.unset":      "(not set)",
 		"config.saved":      "Configuration saved to ~/.shell-mate.yaml",
 		"config.write_err":  "Failed to write config: %s",

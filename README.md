@@ -47,7 +47,7 @@
 ### 方式一：直接下载 (推荐)
 1. 前往 [Releases](https://github.com/LittleTwhale/shell-mate/releases) 页面。
 2. 下载适配您系统的压缩包（如 `shell-mate_Windows_x86_64.zip`）。
-3. 解压后将 `sm` 或 `sm.exe` 放置在系统 PATH 目录下即可直接使用。
+3. （可选）解压后将 `sm` 或 `sm.exe` 放置在系统 PATH 目录下即可直接使用。
 
 ### 方式二：源码编译
 
@@ -57,7 +57,8 @@ git clone https://github.com/LittleTwhale/shell-mate.git
 cd shell-mate
 
 # 编译
-go build -o sm .
+go build -o sm .      # macOS / Linux
+go build -o sm.exe .  # Windows
 
 # (可选) 移动到 PATH 目录
 sudo mv sm /usr/local/bin/      # macOS / Linux
@@ -164,6 +165,8 @@ sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
 | `sm config -m <name>` | 设置模型名称 | Set model name |
 | `sm config -s <key>` | 设置搜索 API Key（预留） | Set search API key (reserved) |
 | `sm config -l zh\|en` | 切换界面语言 | Switch UI language |
+| `sm config --add-danger "xxx"` | 添加自定义高危拦截词 | Add custom dangerous keyword |
+| `sm config --remove-danger "xxx"` | 移除自定义高危拦截词 | Remove custom dangerous keyword |
 | `sm config` | 查看当前配置 | Show current config |
 
 ---
