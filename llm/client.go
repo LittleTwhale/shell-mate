@@ -17,14 +17,90 @@ type LLMResponse struct {
 	NeedSearch bool   `json:"need_search"` // 是否需要联网搜索
 }
 
+// ========== OpenAI 兼容 Provider ==========
+
+// OpenAICompatibleProvider 实现 OpenAI 兼容 API（适用于 OpenAI / DeepSeek / Ollama）
+type OpenAICompatibleProvider struct {
+	apiBaseURL string
+	apiKey     string
+	modelName  string
+	name       string // provider 标识名
+}
+
+// Name 返回 Provider 名称
+func (p *OpenAICompatibleProvider) Name() string {
+	return p.name
+}
+
+// Chat 发送 Chat Completions 请求并解析 JSON 响应
+func (p *OpenAICompatibleProvider) Chat(systemPrompt, userMessage string) (*LLMResponse, error) {
+	apiURL := strings.TrimRight(p.apiBaseURL, "/") + "/chat/completions"
+
+	reqBody := chatCompletionRequest{
+		Model: p.modelName,
+		Messages: []chatMessage{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userMessage},
+		},
+		Temperature: 0.1,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求失败: %w", err)
+	}
+
+	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("创建 HTTP 请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("API 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API 返回错误状态 %d: %s", resp.StatusCode, string(body))
+	}
+
+	var chatResp chatCompletionResponse
+	if err := json.Unmarshal(body, &chatResp); err != nil {
+		return nil, fmt.Errorf("解析 API 响应失败: %w", err)
+	}
+
+	if len(chatResp.Choices) == 0 {
+		return nil, fmt.Errorf("API 返回了空的 choices")
+	}
+
+	content := strings.TrimSpace(chatResp.Choices[0].Message.Content)
+
+	var llmResp LLMResponse
+	if err := json.Unmarshal([]byte(content), &llmResp); err != nil {
+		return nil, fmt.Errorf("解析 LLM JSON 响应失败: %w\n原始内容: %s", err, content)
+	}
+
+	return &llmResp, nil
+}
+
 // ========== 多语言系统提示词 ==========
 
 // prompts 按语言存储系统提示词和用户消息模板
 type promptSet struct {
-	systemPrompt       string // 快路径系统提示词
-	searchSystemPrompt string // 慢路径系统提示词（含搜索结果）
-	userMsgTmpl        string // 用户消息模板（含系统上下文）
-	userMsgSearchTmpl  string // 用户消息模板（含系统上下文 + 搜索结果）
+	systemPrompt        string // 快路径系统提示词
+	searchSystemPrompt  string // 慢路径系统提示词（含搜索结果）
+	userMsgTmpl         string // 用户消息模板（含系统上下文）
+	userMsgSearchTmpl   string // 用户消息模板（含系统上下文 + 搜索结果）
+	correctionPrompt    string // AI 自我纠错提示词
 }
 
 var prompts = map[string]promptSet{
@@ -71,6 +147,22 @@ var prompts = map[string]promptSet{
 
 		userMsgTmpl:       "以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s",
 		userMsgSearchTmpl: "以下是当前的系统环境信息：\n\n%s\n\n用户的自然语言请求：%s\n\n以下是从网络上搜索到的相关参考资料，请根据这些结果构造准确的命令：\n\n%s",
+
+		correctionPrompt: `你是一个 Shell 命令调试助手。以下命令在执行时失败了，请分析错误原因并给出修正后的命令。
+
+你必须严格按以下 JSON 格式返回，不要包含 Markdown 代码块标记（不要用反引号包裹），仅输出纯 JSON：
+
+{
+  "cmd": "修正后的 shell 命令",
+  "explain": "用中文说明错误原因和修正内容",
+  "need_search": false
+}
+
+重要规则：
+1. 仔细分析错误输出中的错误信息，定位根本原因。
+2. 给出的修正命令必须是可以直接执行的。
+3. 如果错误与系统环境有关（如缺少依赖、权限不足等），请在 explain 中说明。
+4. explain 必须使用中文。`,
 	},
 	"en": {
 		systemPrompt: `You are a Shell command translator. The user describes what they want to do in natural language, and you translate it into a precise Shell command.
@@ -115,6 +207,22 @@ Important rules:
 
 		userMsgTmpl:       "Current system environment:\n\n%s\n\nUser's natural language request: %s",
 		userMsgSearchTmpl: "Current system environment:\n\n%s\n\nUser's natural language request: %s\n\nThe following reference material was found via web search; use it to construct the correct command:\n\n%s",
+
+		correctionPrompt: `You are a Shell command debugger. The following command failed during execution. Analyze the error and provide a corrected command.
+
+You MUST return strictly valid JSON in the following format, without Markdown code fences (no backticks), output ONLY raw JSON:
+
+{
+  "cmd": "the corrected shell command",
+  "explain": "explain what went wrong and how you fixed it",
+  "need_search": false
+}
+
+Important rules:
+1. Carefully analyze the error output to identify the root cause.
+2. The corrected command must be directly executable in the current OS environment.
+3. If the error is related to the system environment (missing dependencies, permission issues, etc.), note this in the explanation.
+4. explain must be in English.`,
 	},
 }
 
@@ -126,90 +234,32 @@ func getPromptSet(lang string) promptSet {
 	return prompts["zh"]
 }
 
+// ========== 公开 API ==========
+
 // CallLLM 调用 LLM API，将用户的自然语言请求翻译为 Shell 命令（快路径）
-// apiBaseURL: API 端点地址（如 https://api.openai.com/v1 或 https://api.deepseek.com）
-// apiKey: API 密钥
-// modelName: 模型名称（如 gpt-4o-mini、deepseek-v4-flash）
-// context: GatherContext() 收集的系统环境信息
-// userQuery: 用户的自然语言请求
-// lang: 当前语言 (zh/en)
-func CallLLM(apiBaseURL string, apiKey string, modelName string, context string, userQuery string, lang string) (*LLMResponse, error) {
+func CallLLM(provider Provider, context string, userQuery string, lang string) (*LLMResponse, error) {
 	ps := getPromptSet(lang)
 	userMsg := fmt.Sprintf(ps.userMsgTmpl, context, userQuery)
-	return callLLMInternal(apiBaseURL, apiKey, modelName, ps.systemPrompt, userMsg)
+	return provider.Chat(ps.systemPrompt, userMsg)
 }
 
 // CallLLMWithSearch 调用 LLM API 并传入网络搜索结果，让模型基于搜索结果生成命令（慢路径）
-// searchResults: FlattenResults() 产出的搜索结果文本摘要
-func CallLLMWithSearch(apiBaseURL string, apiKey string, modelName string, context string, userQuery string, searchResults string, lang string) (*LLMResponse, error) {
+func CallLLMWithSearch(provider Provider, context string, userQuery string, searchResults string, lang string) (*LLMResponse, error) {
 	ps := getPromptSet(lang)
 	userMsg := fmt.Sprintf(ps.userMsgSearchTmpl, context, userQuery, searchResults)
-	return callLLMInternal(apiBaseURL, apiKey, modelName, ps.searchSystemPrompt, userMsg)
+	return provider.Chat(ps.searchSystemPrompt, userMsg)
 }
 
-// callLLMInternal LLM 调用的内部实现，发送请求并解析 JSON 响应
-func callLLMInternal(apiBaseURL string, apiKey string, modelName string, systemPrompt string, userMessage string) (*LLMResponse, error) {
-	// 拼接完整的 Chat Completions 端点
-	apiURL := strings.TrimRight(apiBaseURL, "/") + "/chat/completions"
-
-	reqBody := chatCompletionRequest{
-		Model: modelName,
-		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userMessage},
-		},
-		Temperature: 0.1, // 低温度以保证输出稳定
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("serialize request failed: %w", err)
-	}
-
-	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("create HTTP request failed: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-
-	// 设置 60 秒超时，等待 LLM 生成响应
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response failed: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned error status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var chatResp chatCompletionResponse
-	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return nil, fmt.Errorf("parse API response failed: %w", err)
-	}
-
-	if len(chatResp.Choices) == 0 {
-		return nil, fmt.Errorf("API returned empty choices")
-	}
-
-	// 提取 LLM 返回的 JSON 内容并解析
-	content := chatResp.Choices[0].Message.Content
-	content = strings.TrimSpace(content)
-
-	var llmResp LLMResponse
-	if err := json.Unmarshal([]byte(content), &llmResp); err != nil {
-		return nil, fmt.Errorf("parse LLM JSON response failed: %w\nraw content: %s", err, content)
-	}
-
-	return &llmResp, nil
+// CallLLMForCorrection 将执行失败的命令和错误信息发送给 LLM，请求修正命令
+// failedCmd: 执行失败的命令
+// stderr: 命令的错误输出
+func CallLLMForCorrection(provider Provider, failedCmd string, stderr string, context string, userQuery string, lang string) (*LLMResponse, error) {
+	ps := getPromptSet(lang)
+	correctionUserMsg := fmt.Sprintf("原始需求：%s\n\n%s\n执行的命令：\n%s\n\n错误输出：\n%s", userQuery, context, failedCmd, stderr)
+	return provider.Chat(ps.correctionPrompt, correctionUserMsg)
 }
+
+// ========== OpenAI 兼容 API 数据结构 ==========
 
 // chatCompletionRequest OpenAI 兼容的 Chat Completions 请求体
 type chatCompletionRequest struct {

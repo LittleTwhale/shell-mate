@@ -32,6 +32,12 @@
 ### 多语言支持 | Multi-Language
 一键切换中英文界面：`sm config -l en`
 
+### 可插拔 Provider 架构 | Pluggable Provider
+内置 OpenAI / DeepSeek / Ollama / Claude 预设，一键切换：`sm config -p claude`
+
+### AI 自我纠错 | Self-Correction
+命令执行失败时自动捕获错误，AI 分析后给出修正命令，形成"翻译→执行→修正"闭环。
+
 </td>
 </tr>
 </table>
@@ -42,7 +48,7 @@
 
 ### 前置条件
 - **Go 1.26+** 环境(如需源码编译)
-- 一个兼容 OpenAI API 的 LLM 服务（推荐 [DeepSeek](https://platform.deepseek.com)，免费注册即用）
+- 一个 LLM 服务（支持 OpenAI / DeepSeek / Ollama / Claude，推荐 [DeepSeek](https://platform.deepseek.com) 免费注册即用）
 
 ### 方式一：直接下载 (推荐)
 1. 前往 [Releases](https://github.com/LittleTwhale/shell-mate/releases) 页面。
@@ -74,10 +80,16 @@ go install github.com/LittleTwhale/shell-mate@latest
 ### 配置 API Key
 
 ```bash
-# 设置 LLM API 密钥（以 DeepSeek 为例，兼容所有 OpenAI 格式 API）
+# 设置 LLM API 密钥（以 DeepSeek 为例）
 sm config -k sk-your-api-key-here
 
-# 也可自定义 API 端点和模型
+# 一键切换 Provider（自动设置 API 端点 + 模型）
+sm config -p deepseek    # DeepSeek（默认）
+sm config -p openai      # OpenAI
+sm config -p ollama      # 本地 Ollama
+sm config -p claude      # Anthropic Claude
+
+# 也可手动自定义 API 端点和模型
 sm config -b https://api.deepseek.com
 sm config -m deepseek-v4-flash
 
@@ -164,6 +176,7 @@ sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
 | `sm config -b <url>` | 设置 API 端点 | Set API base URL |
 | `sm config -m <name>` | 设置模型名称 | Set model name |
 | `sm config -s <key>` | 设置搜索 API Key（预留） | Set search API key (reserved) |
+| `sm config -p <name>` | 切换 LLM Provider (openai/deepseek/ollama/claude) | Switch LLM provider |
 | `sm config -l zh\|en` | 切换界面语言 | Switch UI language |
 | `sm config --add-danger "xxx"` | 添加自定义高危拦截词 | Add custom dangerous keyword |
 | `sm config --remove-danger "xxx"` | 移除自定义高危拦截词 | Remove custom dangerous keyword |
@@ -196,7 +209,12 @@ sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
          ▼
 ┌─────────────────┐
 │  交互式 TUI 菜单 │  执行 / 取消 / 解释
-└─────────────────┘
+└────────┬────────┘
+         │ 执行失败?
+         ▼
+┌─────────────────┐        ┌─────────────────┐
+│  AI 自我纠错     │───────▶│  展示修正命令    │  闭环重试
+└─────────────────┘        └─────────────────┘
 ```
 
 ---
@@ -214,8 +232,10 @@ shell-mate/
 │   ├── spinner.go       # 终端旋转动画组件
 │   └── tui.go           # 交互式选择菜单 + 命令执行
 ├── llm/
-│   ├── client.go        # LLM API 客户端 + 系统提示词
-│   └── context.go       # 系统环境信息收集
+│   ├── client.go        # LLM API 客户端 + OpenAI 兼容 Provider + 系统提示词
+│   ├── context.go       # 系统环境信息收集
+│   ├── provider.go      # Provider 接口定义 + 工厂方法 + 预设表
+│   └── claude.go        # Anthropic Claude Provider 适配器
 └── search/
     ├── search.go        # DuckDuckGo / Bing 搜索
     └── search_test.go   # 搜索模块测试

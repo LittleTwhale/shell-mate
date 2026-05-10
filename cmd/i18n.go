@@ -63,6 +63,13 @@ var messages = map[Lang]map[string]string{
 		"tui.explain_prefix": "\n命令解释: %s\n\n",
 		"tui.run_error":      "TUI 运行失败: %v",
 
+		// 纠错重试菜单
+		"tui.retry_title":       "命令执行失败，是否让 AI 尝试修正?",
+		"tui.retry_description": "错误输出: %s",
+		"tui.retry_opt_ai":      "[r] AI 修正重试 (Retry with AI)",
+		"tui.retry_opt_cancel":  "[n] 取消 (Cancel)",
+		"tui.retry_cancelled":   "已取消，不进行 AI 修正。",
+
 		// 安全护栏 — 警告框
 		"guard.warning_title":  "严重安全警告：检测到高危命令操作！",
 		"guard.warning_desc":   "该命令可能对您的系统造成不可逆的损害！",
@@ -88,6 +95,7 @@ var messages = map[Lang]map[string]string{
 		"config.model_name": "  MODEL_NAME     : %s",
 		"config.search_key": "  SEARCH_API_KEY : %s",
 		"config.language":   "  LANGUAGE       : %s",
+		"config.provider":   "  PROVIDER       : %s",
 		"config.danger_list": "  DANGER_KEYWORDS: %v",
 		"config.unset":      "(未设置)",
 		"config.saved":      "配置已保存到 ~/.shell-mate.yaml",
@@ -107,6 +115,7 @@ var messages = map[Lang]map[string]string{
 		"root.llm_calling":     "正在请求 AI 翻译...",
 		"root.search_spin":     "遇到复杂指令，正在联网搜索...",
 		"root.search_spin_done": "搜索完成，正在重新生成命令...",
+		"root.correction_spin":  "命令执行失败，正在请求 AI 修正...",
 
 		// Agentic 搜索（阶段 5 慢路径）
 		"root.search_start":    "\n[i] 遇到复杂指令，正在联网搜索解决方案...",
@@ -164,6 +173,13 @@ Running without arguments displays current configuration.`,
 		"tui.explain_prefix": "\nExplanation: %s\n\n",
 		"tui.run_error":      "TUI error: %v",
 
+		// Correction retry menu
+		"tui.retry_title":       "Command failed. Retry with AI correction?",
+		"tui.retry_description": "Error output: %s",
+		"tui.retry_opt_ai":      "[r] Retry with AI correction",
+		"tui.retry_opt_cancel":  "[n] Cancel",
+		"tui.retry_cancelled":   "AI correction cancelled.",
+
 		// Guardrails — warning box
 		"guard.warning_title":  "CRITICAL SAFETY WARNING: Dangerous command detected!",
 		"guard.warning_desc":   "This command may cause irreversible damage to your system!",
@@ -189,6 +205,7 @@ Running without arguments displays current configuration.`,
 		"config.model_name": "  MODEL_NAME     : %s",
 		"config.search_key": "  SEARCH_API_KEY : %s",
 		"config.language":   "  LANGUAGE       : %s",
+		"config.provider":   "  PROVIDER       : %s",
 		"config.danger_list": "  DANGER_KEYWORDS: %v",
 		"config.unset":      "(not set)",
 		"config.saved":      "Configuration saved to ~/.shell-mate.yaml",
@@ -208,6 +225,7 @@ Running without arguments displays current configuration.`,
 		"root.llm_calling":     "Requesting AI translation...",
 		"root.search_spin":     "Complex request, searching the web...",
 		"root.search_spin_done": "Search done, regenerating command...",
+		"root.correction_spin":  "Command failed, requesting AI correction...",
 
 		// Agentic search (Phase 5 slow path)
 		"root.search_start":    "\n[i] Complex request detected, searching the web for solutions...",

@@ -1,18 +1,27 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 )
 
-// showTUI 显示交互式选择菜单，让用户确认是否执行命令
-// 选项 e（解释）会打印解释后重新展示菜单，形成循环
-// dangerous 为 true 时，选择 [y] 不会直接执行，而是弹出 YES 确认输入框
-func showTUI(cmdStr, explain string, dangerous bool) {
+// TUIResult showTUI 的返回结果，告知调用方下一步动作
+type TUIResult struct {
+	Action string // "executed" / "cancelled" / "retry"
+	Stderr string // 命令执行失败时的错误输出，仅 retry 时有效
+}
+
+// showTUI 显示交互式命令确认菜单
+// 用户可选择执行/取消/解释。执行失败后提供 AI 修正重试选项。
+// dangerous 为 true 时，执行前需要输入 YES 二次确认
+func showTUI(cmdStr, explain string, dangerous bool) TUIResult {
 	for {
 		var choice string
 
@@ -37,17 +46,26 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 
 		switch choice {
 		case "y":
-			// 高危命令需要输入 YES 确认，禁止直接执行
+			// 高危命令需要输入 YES 确认
 			if dangerous {
 				if !confirmDangerous() {
-					continue // 用户未输入 YES，返回菜单重新选择
+					continue // 未输入 YES，返回菜单重新选择
 				}
 			}
-			executeCommand(cmdStr)
-			return
+			// 执行命令，捕获 stderr
+			exitCode, stderr, execErr := executeCommand(cmdStr)
+			if execErr != nil || exitCode != 0 {
+				// 命令执行失败，展示 AI 修正重试菜单
+				action := showRetryMenu(cmdStr, stderr)
+				return TUIResult{Action: action, Stderr: stderr}
+			}
+			// 执行成功
+			return TUIResult{Action: "executed"}
+
 		case "n":
 			fmt.Println(t("tui.cancelled"))
-			os.Exit(0)
+			return TUIResult{Action: "cancelled"}
+
 		case "e":
 			fmt.Printf(t("tui.explain_prefix"), explain)
 			// 继续循环，重新展示菜单
@@ -55,12 +73,55 @@ func showTUI(cmdStr, explain string, dangerous bool) {
 	}
 }
 
-// executeCommand 执行 Shell 命令，并将 Stdout/Stderr 实时重定向到终端
-func executeCommand(cmdStr string) {
+// showRetryMenu 命令执行失败后展示 AI 修正重试菜单
+func showRetryMenu(failedCmd, stderr string) string {
+	// 截断过长的错误输出，仅保留前 200 字符用于显示
+	stderrDisplay := strings.TrimSpace(stderr)
+	if len(stderrDisplay) > 200 {
+		stderrDisplay = stderrDisplay[:200] + "..."
+	}
+	if stderrDisplay == "" {
+		stderrDisplay = "(无错误输出)"
+	}
+
+	fmt.Println()
+	fmt.Fprintf(os.Stderr, "\033[1;33m%s\033[0m\n", t("tui.retry_title"))
+	fmt.Fprintf(os.Stderr, "\033[90m%s\033[0m\n", stderrDisplay)
+
+	var choice string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title(t("tui.retry_title")).
+				Description(fmt.Sprintf(t("tui.retry_description"), stderrDisplay)).
+				Options(
+					huh.NewOption(t("tui.retry_opt_ai"), "r"),
+					huh.NewOption(t("tui.retry_opt_cancel"), "n"),
+				).
+				Value(&choice),
+		),
+	).Run()
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, t("tui.retry_cancelled"))
+		return "cancelled"
+	}
+
+	switch choice {
+	case "r":
+		return "retry"
+	default:
+		fmt.Fprintln(os.Stderr, t("tui.retry_cancelled"))
+		return "cancelled"
+	}
+}
+
+// executeCommand 执行 Shell 命令，实时输出到终端，同时捕获 stderr
+// 返回值: exitCode 进程退出码（0 表示成功），stderr 捕获的错误输出，err 执行层面的错误
+func executeCommand(cmdStr string) (exitCode int, stderr string, err error) {
 	var cmd *exec.Cmd
 
 	if runtime.GOOS == "windows" {
-		// 根据环境变量智能判断使用哪个执行引擎
 		if os.Getenv("PSModulePath") != "" {
 			cmd = exec.Command("powershell", "-NoProfile", "-Command", cmdStr)
 		} else {
@@ -74,13 +135,30 @@ func executeCommand(cmdStr string) {
 		cmd = exec.Command(shell, "-c", cmdStr)
 	}
 
-	// 将命令的输入输出直接连接到终端，确保实时交互
+	// stderr 实时输出到终端，同时写入缓冲区供纠错使用
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
 	fmt.Println()
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n"+t("exec.run_error")+"\n", err)
+	runErr := cmd.Run()
+
+	// 获取退出码
+	if runErr != nil {
+		if exitErr, ok := runErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			// 其他执行错误（如找不到命令）
+			exitCode = -1
+			err = runErr
+		}
 	}
+
+	// 如果有非退出码类型的错误，把错误信息也加入 stderr
+	if err != nil {
+		stderrBuf.WriteString(err.Error())
+	}
+
+	return exitCode, stderrBuf.String(), runErr
 }

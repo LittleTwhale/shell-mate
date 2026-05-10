@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"shell-mate/llm"
 )
 
 // config 命令的命令行参数
@@ -17,6 +19,7 @@ var (
 	apiBaseURL   string // -b, API 端点地址
 	searchAPIKey string // -s, 搜索 API 密钥（预留）
 	language     string // -l, 界面语言 (zh/en)
+	providerName string // -p, Provider 名称 (openai/deepseek/ollama/claude)
 	addDanger    string // 添加高危关键词
 	removeDanger string // 移除高危关键词
 )
@@ -50,6 +53,15 @@ var configCmd = &cobra.Command{
 		}
 		if language != "" {
 			viper.Set("language", language)
+			changed = true
+		}
+		// 处理 provider 预设切换：自动设置 api_base_url 和 model_name
+		if providerName != "" {
+			viper.Set("provider", providerName)
+			if preset, ok := llm.Presets[providerName]; ok {
+				viper.Set("api_base_url", preset.DefaultBaseURL)
+				viper.Set("model_name", preset.DefaultModel)
+			}
 			changed = true
 		}
 		// 处理添加自定义高危关键词
@@ -109,6 +121,12 @@ func printConfig() {
 	fmt.Printf(t("config.api_key")+"\n", maskValue(viper.GetString("api_key")))
 	fmt.Printf(t("config.api_base")+"\n", viper.GetString("api_base_url"))
 	fmt.Printf(t("config.model_name")+"\n", viper.GetString("model_name"))
+	// 显示 provider 名称
+	provider := viper.GetString("provider")
+	if provider == "" {
+		provider = "deepseek"
+	}
+	fmt.Printf(t("config.provider")+"\n", provider)
 	fmt.Printf(t("config.search_key")+"\n", maskValue(viper.GetString("search_api_key")))
 	lang := viper.GetString("language")
 	if lang == "" {
@@ -146,6 +164,7 @@ func init() {
 	configCmd.Flags().StringVarP(&modelName, "model-name", "m", "", "设置模型名称 (默认: deepseek-v4-flash)")
 	configCmd.Flags().StringVarP(&searchAPIKey, "search-api-key", "s", "", "设置搜索 API Key (Tavily/Serper)")
 	configCmd.Flags().StringVarP(&language, "language", "l", "", "设置界面语言: zh (中文) 或 en (英文)")
+	configCmd.Flags().StringVarP(&providerName, "provider", "p", "", "设置 LLM Provider: openai / deepseek / ollama / claude")
 	configCmd.Flags().StringVar(&addDanger, "add-danger", "", "添加自定义高危命令关键词")
 	configCmd.Flags().StringVar(&removeDanger, "remove-danger", "", "移除自定义高危命令关键词")
 	rootCmd.AddCommand(configCmd)

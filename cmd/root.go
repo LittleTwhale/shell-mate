@@ -26,10 +26,9 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		// 获取当前语言设置
 		lang := CurrentLang()
 
-		// 读取 API 密钥，兼容旧的 openai_api_key 配置项
+		// 读取 API 密钥
 		apiKey := viper.GetString("api_key")
 		if apiKey == "" {
 			apiKey = viper.GetString("openai_api_key")
@@ -39,84 +38,79 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 读取 API 端点地址和模型名称
+		// 读取 Provider 配置
 		apiBaseURL := viper.GetString("api_base_url")
 		modelName := viper.GetString("model_name")
+		providerName := viper.GetString("provider")
+		if providerName == "" {
+			providerName = "deepseek"
+		}
+
+		// 创建 LLM Provider 实例
+		provider, err := llm.NewProvider(providerName, apiBaseURL, apiKey, modelName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "创建 LLM Provider 失败: %v\n", err)
+			os.Exit(1)
+		}
 
 		// 收集系统上下文
 		context := llm.GatherContext(lang)
 
-		// 第一次 LLM 调用 — 启动旋转动画提供可视化反馈
-		sp := startSpinner(fmt.Sprintf("%s %s", t("root.llm_calling"), args[0]))
-		resp, err := llm.CallLLM(apiBaseURL, apiKey, modelName, context, args[0], lang)
-		if err != nil {
-			sp.stop("")
-			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err)
+		// 用户查询（在整个纠错循环中保持不变）
+		userQuery := args[0]
+
+		// 初始 LLM 翻译
+		var resp *llm.LLMResponse
+		var llmErr error
+
+		resp, llmErr = initialCall(provider, context, userQuery, lang)
+		if llmErr != nil {
+			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", llmErr)
 			os.Exit(1)
 		}
 
-		// 保存原始响应作为回退（当 need_search 为 true 但仍可能有部分命令时）
-		fallbackResp := resp
-
-		// 慢路径：LLM 表示需要联网搜索（仅需 need_search 为 true 即触发）
-		if resp.NeedSearch {
-			// 更新 spinner 为搜索状态
-			sp.update(t("root.search_spin"))
-
-			// 使用用户原始描述作为关键词调用搜索 API
-			searchResults, searchErr := search.Search(args[0], 3)
-			if searchErr != nil {
-				sp.stop("")
-				fmt.Fprintf(os.Stderr, t("root.search_fail")+"\n", searchErr)
-				// 搜索失败时使用第一次调用的结果作为回退
-				if resp.Cmd == "" {
-					fmt.Println(t("root.search_fallback"))
-				} else {
-					// 有 cmd 就继续用，但提示搜索失败
-					fmt.Fprintln(os.Stderr, t("root.search_fallback"))
-				}
+		// 主循环：展示命令 → 执行 → 可能失败 → AI 修正 → 重新展示
+		for {
+			// 最终检查：LLM 未能生成有效命令
+			if resp.Cmd == "" {
+				fmt.Fprintln(os.Stderr, t("root.llm_nocmd"))
+				os.Exit(1)
 			}
 
-			// 搜索成功时，基于搜索结果发起第二次 LLM 调用
-			if searchResults != nil && len(searchResults) > 0 {
-				sp.update(t("root.search_spin_done"))
-				flatResults := search.FlattenResults(searchResults, lang)
-				resp2, err2 := llm.CallLLMWithSearch(apiBaseURL, apiKey, modelName, context, args[0], flatResults, lang)
-				if err2 != nil {
-					sp.stop("")
-					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", err2)
+			// 检查命令是否包含高危关键词
+			dangerous := isDangerous(resp.Cmd)
+			if dangerous {
+				printDangerWarning(resp.Cmd)
+			}
+
+			// 展示 TUI 菜单，用户选择执行/取消/解释
+			result := showTUI(resp.Cmd, resp.Explain, dangerous)
+
+			switch result.Action {
+			case "executed":
+				// 命令执行成功，退出
+				return
+
+			case "cancelled":
+				// 用户取消，退出
+				return
+
+			case "retry":
+				// 命令执行失败，请求 AI 修正
+				sp := startSpinner(fmt.Sprintf("%s %s", t("root.correction_spin"), resp.Cmd))
+				correctedResp, corrErr := llm.CallLLMForCorrection(
+					provider, resp.Cmd, result.Stderr, context, userQuery, lang)
+				sp.stop("")
+
+				if corrErr != nil {
+					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", corrErr)
+					fmt.Fprintln(os.Stderr, t("root.llm_nocmd"))
 					os.Exit(1)
 				}
-
-				// 如果二次调用后仍标记 need_search，给用户一个提示
-				if resp2.NeedSearch {
-					sp.stop("")
-					fmt.Println(t("root.search_still"))
-				}
-				resp = resp2
-			} else {
-				// 搜索无结果，使用第一次调用结果
-				resp = fallbackResp
+				resp = correctedResp
+				// 继续循环，展示修正后的命令
 			}
 		}
-
-		// 停止旋转动画
-		sp.stop("")
-
-		// 最终检查：LLM 未能生成有效命令时退出
-		if resp.Cmd == "" {
-			fmt.Fprintln(os.Stderr, t("root.llm_nocmd"))
-			os.Exit(1)
-		}
-
-		// 检查命令是否包含高危关键词，在展示菜单前进行安全扫描
-		dangerous := isDangerous(resp.Cmd)
-		if dangerous {
-			printDangerWarning(resp.Cmd)
-		}
-
-		// 调用交互式 TUI 菜单，让用户选择执行/取消/解释
-		showTUI(resp.Cmd, resp.Explain, dangerous)
 	},
 }
 
@@ -151,6 +145,7 @@ func initConfig() {
 	viper.SetDefault("api_base_url", "https://api.deepseek.com")
 	viper.SetDefault("model_name", "deepseek-v4-flash")
 	viper.SetDefault("language", "zh")
+	viper.SetDefault("provider", "deepseek")
 
 	viper.AutomaticEnv()
 
@@ -167,4 +162,54 @@ func initConfig() {
 
 	configCmd.Short = t("config.short")
 	configCmd.Long = t("config.long")
+}
+
+// initialCall 首次 LLM 调用，包含搜索慢路径逻辑
+func initialCall(provider llm.Provider, context string, userQuery string, lang string) (*llm.LLMResponse, error) {
+	sp := startSpinner(fmt.Sprintf("%s %s", t("root.llm_calling"), userQuery))
+	resp, err := llm.CallLLM(provider, context, userQuery, lang)
+	if err != nil {
+		sp.stop("")
+		return nil, err
+	}
+
+	// 保存原始响应作为回退
+	fallbackResp := resp
+
+	// 慢路径：LLM 表示需要联网搜索
+	if resp.NeedSearch {
+		sp.update(t("root.search_spin"))
+
+		searchResults, searchErr := search.Search(userQuery, 3)
+		if searchErr != nil {
+			sp.stop("")
+			fmt.Fprintf(os.Stderr, t("root.search_fail")+"\n", searchErr)
+			if resp.Cmd == "" {
+				fmt.Println(t("root.search_fallback"))
+			} else {
+				fmt.Fprintln(os.Stderr, t("root.search_fallback"))
+			}
+		}
+
+		if searchResults != nil && len(searchResults) > 0 {
+			sp.update(t("root.search_spin_done"))
+			flatResults := search.FlattenResults(searchResults, lang)
+			resp2, err2 := llm.CallLLMWithSearch(provider, context, userQuery, flatResults, lang)
+			if err2 != nil {
+				sp.stop("")
+				return nil, err2
+			}
+
+			if resp2.NeedSearch {
+				sp.stop("")
+				fmt.Println(t("root.search_still"))
+			}
+			resp = resp2
+		} else {
+			resp = fallbackResp
+		}
+	}
+
+	sp.stop("")
+	return resp, nil
 }
