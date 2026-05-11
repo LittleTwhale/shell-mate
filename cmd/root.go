@@ -53,11 +53,11 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 收集系统上下文
-		context := llm.GatherContext(lang)
-
-		// 用户查询（在整个纠错循环中保持不变）
+		// 先提取用户查询
 		userQuery := args[0]
+
+		// 将 userQuery 传给 GatherContext，让它决定要不要读取目录
+		context := llm.GatherContext(lang, userQuery)
 
 		// 初始 LLM 翻译
 		var resp *llm.LLMResponse

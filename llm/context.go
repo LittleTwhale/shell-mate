@@ -45,6 +45,22 @@ func getContextLabels(lang string) struct {
 	return contextLabels["zh"]
 }
 
+// isFileRelated 启发式判断用户的自然语言需求是否涉及文件系统
+func isFileRelated(query string) bool {
+	// 常见的文件操作、目录操作关键词
+	keywords := []string{
+		"文件", "目录", "夹", "路径", "file", "dir", "folder", "path",
+		"ls", "find", "grep", "cat", "rm", "mv", "cp", "tar", "zip", "unzip", "awk", "sed",
+	}
+	queryLower := strings.ToLower(query)
+	for _, kw := range keywords {
+		if strings.Contains(queryLower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // GatherContext 收集当前系统环境信息，作为 LLM 提示的一部分
 // lang: 当前语言 (zh/en)，影响标签文本的语言
 func GatherContext(lang string) string {
@@ -70,18 +86,40 @@ func GatherContext(lang string) string {
 	}
 	sb.WriteString(fmt.Sprintf("当前Shell: %s\n", shell))
 
-	// 当前工作目录下的文件列表（仅文件名，不读取内容）
-	sb.WriteString(labels.dirLabel)
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		sb.WriteString(fmt.Sprintf(labels.dirErrLabel, err))
-	} else {
-		for _, entry := range entries {
-			sb.WriteString(fmt.Sprintf(labels.dirItemFmt, entry.Name()))
-			if entry.IsDir() {
-				sb.WriteString("/")
+	// 当前工作目录下的文件列表（仅文件名，不读取内容,惰性加载）
+	if isFileRelated(userQuery) {
+		sb.WriteString(labels.dirLabel)
+		entries, err := os.ReadDir(".")
+		if err != nil {
+			sb.WriteString(fmt.Sprintf(labels.dirErrLabel, err))
+		} else {
+			const maxFiles = 30 // 最大读取数量（瘦身截断）
+			count := 0
+			
+			for _, entry := range entries {
+				name := entry.Name()
+				// 过滤掉极其庞大且对生成命令往往无用的黑洞目录
+				if name == ".git" || name == "node_modules" || name == "vendor" || name == "__pycache__" {
+					continue
+				}
+
+				sb.WriteString(fmt.Sprintf(labels.dirItemFmt, name))
+				if entry.IsDir() {
+					sb.WriteString("/")
+				}
+				sb.WriteString("\n")
+
+				count++
+				if count >= maxFiles {
+					// 达到上限，添加省略号提示并终止
+					if lang == "en" {
+						sb.WriteString("  ... (truncated for brevity)\n")
+					} else {
+						sb.WriteString("  ... (已截断更多文件)\n")
+					}
+					break
+				}
 			}
-			sb.WriteString("\n")
 		}
 	}
 
