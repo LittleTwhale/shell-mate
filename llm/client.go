@@ -97,10 +97,12 @@ func (p *OpenAICompatibleProvider) Chat(systemPrompt, userMessage string) (*LLMR
 // prompts 按语言存储系统提示词和用户消息模板
 type promptSet struct {
 	systemPrompt        string // 快路径系统提示词
+	fastSystemPrompt    string // 极速模式系统提示词
 	searchSystemPrompt  string // 慢路径系统提示词（含搜索结果）
 	userMsgTmpl         string // 用户消息模板（含系统上下文）
 	userMsgSearchTmpl   string // 用户消息模板（含系统上下文 + 搜索结果）
 	correctionPrompt    string // AI 自我纠错提示词
+	fastCorrectionPrompt string // 极速模式专属纠错提示词
 }
 
 var prompts = map[string]promptSet{
@@ -126,6 +128,18 @@ var prompts = map[string]promptSet{
 3. cmd 必须是在当前操作系统环境下可以直接执行的命令。
 4. explain 必须使用中文。
 5. 如果用户的需求缺少必要的具体参数（如 IP 地址、文件路径、URL 等），**千万不要自行猜测或瞎编**，请在 cmd 中使用 <参数名> 作为占位符，例如：scp file.txt user@<Server_IP>:/tmp。`,
+
+
+		fastSystemPrompt: `你是一个极速 Shell 翻译器。用户提供需求，你直接输出命令。
+你必须严格按以下 JSON 格式返回，不要用反引号包裹，仅输出纯 JSON：
+{
+  "cmd": "要执行的精确 shell 命令",
+  "explain": "",
+  "need_search": false
+}
+规则：
+1. explain 字段必须强行留空（""），不要写任何解释。
+2. need_search 必须设为 false，不要触发搜索。`,
 
 		searchSystemPrompt: `你是一个 Shell 命令翻译助手。用户会用自然语言描述操作需求，你需要将其翻译成精确的 Shell 命令。
 
@@ -166,6 +180,18 @@ var prompts = map[string]promptSet{
 3. 如果错误与系统环境有关（如缺少依赖、权限不足等），请在 explain 中说明。
 4. explain 必须使用中文。
 5. 如果用户的需求缺少必要的具体参数（如 IP 地址、文件路径、URL 等），**千万不要自行猜测或瞎编**，请在 cmd 中使用 <参数名> 作为占位符，例如：scp file.txt user@<Server_IP>:/tmp。`,
+
+		fastCorrectionPrompt: `你是一个极速 Shell 调试助手。以下命令在执行时失败了，请直接给出修正后的命令。
+你必须严格按以下 JSON 格式返回，不要包含 Markdown 代码块标记（不要用反引号包裹），仅输出纯 JSON：
+{
+  "cmd": "修正后的 shell 命令",
+  "explain": "",
+  "need_search": false
+}
+规则：
+1. 给出的修正命令必须是可以直接执行的。
+2. explain 字段必须强行留空（""），不要解释错误原因。
+3. need_search 必须设为 false。`,
 	},
 	"en": {
 		systemPrompt: `You are a Shell command translator. The user describes what they want to do in natural language, and you translate it into a precise Shell command.
@@ -189,6 +215,17 @@ Important rules:
 3. The cmd must be directly executable in the current OS environment.
 4. explain must be in English.
 5. If the user's request lacks necessary specific parameters (such as IP addresses, file paths, URLs, etc.), **DO NOT invent or guess them**. Instead, use a placeholder in the format <Parameter_Name> in the cmd, for example: scp file.txt user@<Server_IP>:/tmp.`,
+
+		fastSystemPrompt: `You are a lightning-fast Shell translator.
+You MUST return strictly valid JSON in the following format, output ONLY raw JSON:
+{
+  "cmd": "the exact shell command",
+  "explain": "",
+  "need_search": false
+}
+Rules:
+1. The explain field MUST be an empty string (""). Do not explain anything.
+2. need_search MUST be false. Do not trigger search.`,
 
 		searchSystemPrompt: `You are a Shell command translator. The user describes what they want to do in natural language, and you translate it into a precise Shell command.
 
@@ -229,6 +266,18 @@ Important rules:
 3. If the error is related to the system environment (missing dependencies, permission issues, etc.), note this in the explanation.
 4. explain must be in English.
 5. If the user's request lacks necessary specific parameters (such as IP addresses, file paths, URLs, etc.), **DO NOT invent or guess them**. Instead, use a placeholder in the format <Parameter_Name> in the cmd, for example: scp file.txt user@<Server_IP>:/tmp.`,
+
+		fastCorrectionPrompt: `You are a fast Shell debugger. The following command failed. Provide the corrected command directly.
+You MUST return strictly valid JSON in the following format, without Markdown code fences (no backticks), output ONLY raw JSON:
+{
+  "cmd": "the corrected shell command",
+  "explain": "",
+  "need_search": false
+}
+Rules:
+1. The corrected command must be directly executable.
+2. The explain field MUST be an empty string (""). Do not explain the error.
+3. need_search MUST be false.`,
 	},
 }
 
@@ -243,10 +292,15 @@ func getPromptSet(lang string) promptSet {
 // ========== 公开 API ==========
 
 // CallLLM 调用 LLM API，将用户的自然语言请求翻译为 Shell 命令（快路径）
-func CallLLM(provider Provider, context string, userQuery string, lang string) (*LLMResponse, error) {
+func CallLLM(provider Provider, context string, userQuery string, lang string, fastMode bool) (*LLMResponse, error) {
 	ps := getPromptSet(lang)
+	// 根据是否开启极速模式，选择对应的系统提示词
+	sysPrompt := ps.systemPrompt
+	if fastMode {
+		sysPrompt = ps.fastSystemPrompt
+	}
 	userMsg := fmt.Sprintf(ps.userMsgTmpl, context, userQuery)
-	return provider.Chat(ps.systemPrompt, userMsg)
+	return provider.Chat(sysPrompt, userMsg)
 }
 
 // CallLLMWithSearch 调用 LLM API 并传入网络搜索结果，让模型基于搜索结果生成命令（慢路径）
@@ -259,10 +313,15 @@ func CallLLMWithSearch(provider Provider, context string, userQuery string, sear
 // CallLLMForCorrection 将执行失败的命令和错误信息发送给 LLM，请求修正命令
 // failedCmd: 执行失败的命令
 // stderr: 命令的错误输出
-func CallLLMForCorrection(provider Provider, failedCmd string, stderr string, context string, userQuery string, lang string) (*LLMResponse, error) {
+func CallLLMForCorrection(provider Provider, failedCmd string, stderr string, context string, userQuery string, lang string, fastMode bool) (*LLMResponse, error) {
 	ps := getPromptSet(lang)
+	// 根据是否开启极速模式选择纠错 Prompt
+	sysPrompt := ps.correctionPrompt
+	if fastMode {
+		sysPrompt = ps.fastCorrectionPrompt
+	}
 	correctionUserMsg := fmt.Sprintf("原始需求：%s\n\n%s\n执行的命令：\n%s\n\n错误输出：\n%s", userQuery, context, failedCmd, stderr)
-	return provider.Chat(ps.correctionPrompt, correctionUserMsg)
+	return provider.Chat(sysPrompt, correctionUserMsg)
 }
 
 // ========== OpenAI 兼容 API 数据结构 ==========

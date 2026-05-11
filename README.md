@@ -23,6 +23,9 @@
 ### 交互式 TUI | Interactive TUI
 基于 Charmbracelet Huh 的美观终端菜单，生成命令后可选择 **执行 / 取消 / 解释**。
 
+### 极速模式 | Fast Mode
+追加 `-f` 或 `--fast` 参数，AI 将跳过长篇大论的原理解释与联网搜索，将 Token 输出量降至极低。
+
 ### 动态填空 | Interactive Placeholders
 当用户的需求缺失关键参数（如 IP 地址、远程路径）时，AI 会智能生成 `<占位符>`，并触发 TUI 表单让用户安全地填空，杜绝 AI 瞎编参数产生幻觉。
 
@@ -125,6 +128,18 @@ $ sm 列出当前目录下最大的 5 个文件
 #   [y] 执行 (Execute)
 #   [n] 取消 (Cancel)
 #   [e] 解释 (Explain)
+```
+
+### 极速模式 
+
+```bash
+$ sm -f 查找占用 8080 端口的进程
+
+# 直接跳过请求动画和解析输出，瞬间弹出执行菜单：
+# ── 是否执行此命令? ──
+# 命令: netstat -ano | findstr ":8080"
+#   [y] 执行 (Execute)
+#   [n] 取消 (Cancel)
 ```
 
 ### 触发动态填空

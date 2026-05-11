@@ -11,7 +11,10 @@ import (
 	"shell-mate/search"
 )
 
-var cfgFile string
+var (
+	cfgFile  string
+	fastMode bool // 极速模式标志位
+)
 
 // rootCmd 是 shell-mate 的根命令，接收自然语言描述并翻译为 Shell 命令
 var rootCmd = &cobra.Command{
@@ -63,7 +66,7 @@ var rootCmd = &cobra.Command{
 		var resp *llm.LLMResponse
 		var llmErr error
 
-		resp, llmErr = initialCall(provider, context, userQuery, lang)
+		resp, llmErr = initialCall(provider, context, userQuery, lang, fastMode)
 		if llmErr != nil {
 			fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", llmErr)
 			os.Exit(1)
@@ -109,13 +112,21 @@ var rootCmd = &cobra.Command{
 				// 命令执行失败，请求 AI 修正
 				sp := startSpinner(fmt.Sprintf("%s %s", t("root.correction_spin"), resp.Cmd))
 				correctedResp, corrErr := llm.CallLLMForCorrection(
-					provider, resp.Cmd, result.Stderr, context, userQuery, lang)
+					provider, resp.Cmd, result.Stderr, context, userQuery, lang, fastMode)
 				sp.stop("")
 
 				if corrErr != nil {
 					fmt.Fprintf(os.Stderr, t("root.llm_fail")+"\n", corrErr)
 					fmt.Fprintln(os.Stderr, t("root.llm_nocmd"))
 					os.Exit(1)
+				}
+				// 极速模式下，大模型返回的 explain 是空的，给它一个默认的占位提示
+				if fastMode && correctedResp.Explain == "" {
+					if lang == "en" {
+						correctedResp.Explain = "(No explanation in fast mode)"
+					} else {
+						correctedResp.Explain = "(极速模式下无错误分析解释)"
+					}
 				}
 				resp = correctedResp
 				// 继续循环，展示修正后的命令
@@ -134,6 +145,8 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	// 注册 -f / --fast 参数
+	rootCmd.Flags().BoolVarP(&fastMode, "fast", "f", false, "极速模式：跳过联网搜索和原理解释，极速生成命令")
 }
 
 // initConfig 初始化 viper 配置，读取 ~/.shell-mate.yaml
@@ -175,9 +188,9 @@ func initConfig() {
 }
 
 // initialCall 首次 LLM 调用，包含搜索慢路径逻辑
-func initialCall(provider llm.Provider, context string, userQuery string, lang string) (*llm.LLMResponse, error) {
+func initialCall(provider llm.Provider, context string, userQuery string, lang string, fast bool) (*llm.LLMResponse, error) {
 	sp := startSpinner(fmt.Sprintf("%s %s", t("root.llm_calling"), userQuery))
-	resp, err := llm.CallLLM(provider, context, userQuery, lang)
+	resp, err := llm.CallLLM(provider, context, userQuery, lang, fast)
 	if err != nil {
 		sp.stop("")
 		return nil, err
@@ -185,6 +198,16 @@ func initialCall(provider llm.Provider, context string, userQuery string, lang s
 
 	// 保存原始响应作为回退
 	fallbackResp := resp
+
+	// 极速模式下，直接忽略搜索逻辑，强制返回当前结果
+	if fast {
+		sp.stop("")
+		// 如果 explain 为空，给一个默认提示
+		if resp.Explain == "" {
+			resp.Explain = "(极速模式下无解释内容)"
+		}
+		return resp, nil
+	}
 
 	// 慢路径：LLM 表示需要联网搜索
 	if resp.NeedSearch {

@@ -63,7 +63,7 @@ func isFileRelated(query string) bool {
 
 // GatherContext 收集当前系统环境信息，作为 LLM 提示的一部分
 // lang: 当前语言 (zh/en)，影响标签文本的语言
-func GatherContext(lang string) string {
+func GatherContext(lang string, userQuery string) string {
 	labels := getContextLabels(lang)
 	var sb strings.Builder
 

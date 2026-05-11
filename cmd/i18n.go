@@ -24,6 +24,7 @@ var messages = map[Lang]map[string]string{
 ━━━ 核心特性 ━━━
   ◆  环境感知     自动收集操作系统、Shell 类型、当前目录文件列表等上下文
   ◆  交互式 TUI    生成命令后提供美观的终端菜单，支持 [执行/取消/解释]
+  ◆  极速模式      使用 -f 参数砍掉冗余输出与搜索
   ◆  动态填空      当命令缺失关键参数(如 IP)时，生成占位符并弹窗安全填空
   ◆  危险命令拦截  检测 rm -rf、mkfs、dd 等危险操作，强制输入 YES 二次确认
   ◆  智能搜索      遇到云平台 CLI、生僻工具等不确定请求时，自动联网搜索防幻觉
@@ -33,6 +34,7 @@ var messages = map[Lang]map[string]string{
 ━━━ 使用示例 ━━━
   sm 列出当前目录下最大的 5 个文件
   sm 查找并杀死占用 8080 端口的进程
+  sm -f 解压 test.tar.gz                  （极速模式，跳过原理解释）
   sm 把 readme.md 传到我的服务器上        （触发动态填空）
   sm 用 AWS CLI 创建一个 S3 存储桶       （触发智能搜索）
   sm 递归删除所有 .log 文件               （触发危险拦截）
@@ -141,6 +143,7 @@ translates natural language into executable Shell commands.
 ━━━ Core Features ━━━
   ◆  Context-Aware      Automatically collects OS, Shell type, and directory listing
   ◆  Interactive TUI     Beautiful terminal menu with execute / cancel / explain options
+  ◆  Fast Mode         Use -f to skip explanations and search for millisecond-level responses
   ◆  Interactive Fill    Auto-generates UI forms for missing parameters (e.g., IPs)
   ◆  Safety Guardrails   Detects dangerous commands (rm -rf, mkfs, dd, etc.) with YES confirmation
   ◆  Agentic Search      Auto-searches the web for complex/uncertain requests to prevent hallucination
@@ -150,6 +153,7 @@ translates natural language into executable Shell commands.
 ━━━ Examples ━━━
   sm list the 5 largest files in current directory
   sm find and kill the process using port 8080
+  sm -f extract test.tar.gz                    (fast mode, skip explanation)
   sm create an S3 bucket with AWS CLI          (triggers agentic search)
   sm upload readme.md to my remote server      (triggers interactive fill)
   sm recursively delete all .log files          (triggers safety guard)
