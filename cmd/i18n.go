@@ -27,6 +27,7 @@ var messages = map[Lang]map[string]string{
   ◆  动态填空      当命令缺失关键参数(如 IP)时，生成占位符并弹窗安全填空
   ◆  危险命令拦截  检测 rm -rf、mkfs、dd 等危险操作，强制输入 YES 二次确认
   ◆  智能搜索      遇到云平台 CLI、生僻工具等不确定请求时，自动联网搜索防幻觉
+  ◆  多模型切换    内置 OpenAI/DeepSeek/Ollama/Claude，支持一键切换 Provider
   ◆  多语言支持    通过 sm config -l 自由切换中英文界面
 
 ━━━ 使用示例 ━━━
@@ -39,6 +40,7 @@ var messages = map[Lang]map[string]string{
 
 ━━━ 配置指南 ━━━
   sm config -k <API_KEY>            设置 LLM API 密钥（必填）
+  sm config -p <PROVIDER>           切换大模型服务商（openai/deepseek/ollama/claude）
   sm config -b <BASE_URL>           设置 API 端点地址（默认 https://api.deepseek.com）
   sm config -m <MODEL>              设置模型名称（默认 deepseek-v4-flash）
   sm config -l <zh|en>              切换界面语言
@@ -142,6 +144,7 @@ translates natural language into executable Shell commands.
   ◆  Interactive Fill    Auto-generates UI forms for missing parameters (e.g., IPs)
   ◆  Safety Guardrails   Detects dangerous commands (rm -rf, mkfs, dd, etc.) with YES confirmation
   ◆  Agentic Search      Auto-searches the web for complex/uncertain requests to prevent hallucination
+  ◆  Pluggable LLMs      Built-in OpenAI/DeepSeek/Ollama/Claude presets for easy switching
   ◆  Multi-Language      Switch between Chinese and English UI via sm config -l
 
 ━━━ Examples ━━━
@@ -154,6 +157,7 @@ translates natural language into executable Shell commands.
 
 ━━━ Configuration ━━━
   sm config -k <API_KEY>                Set LLM API key (required)
+  sm config -p <PROVIDER>               Switch LLM provider (openai/deepseek/ollama/claude)
   sm config -b <BASE_URL>               Set API endpoint (default https://api.deepseek.com)
   sm config -m <MODEL>                  Set model name (default deepseek-v4-flash)
   sm config -l <zh|en>                  Switch UI language
