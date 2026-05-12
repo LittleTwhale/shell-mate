@@ -24,55 +24,12 @@ func (p *ClaudeProvider) Name() string {
 
 // Chat 调用 Anthropic Messages API 并解析响应
 func (p *ClaudeProvider) Chat(systemPrompt, userMessage string) (*LLMResponse, error) {
-	apiURL := strings.TrimRight(p.apiBaseURL, "/") + "/messages"
-
-	reqBody := claudeRequest{
-		Model:      p.modelName,
-		MaxTokens:  1024,
-		System:     systemPrompt,
-		Messages:   []claudeMessage{{Role: "user", Content: userMessage}},
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	content, err := p.ChatRaw(systemPrompt, userMessage)
 	if err != nil {
-		return nil, fmt.Errorf("序列化 Claude 请求失败: %w", err)
+		return nil, err
 	}
 
-	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("创建 Claude HTTP 请求失败: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("Claude API 请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取 Claude 响应失败: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Claude API 返回错误状态 %d: %s", resp.StatusCode, string(body))
-	}
-
-	var claudeResp claudeResponse
-	if err := json.Unmarshal(body, &claudeResp); err != nil {
-		return nil, fmt.Errorf("解析 Claude API 响应失败: %w", err)
-	}
-
-	if len(claudeResp.Content) == 0 {
-		return nil, fmt.Errorf("Claude API 返回了空的 content")
-	}
-
-	// 提取第一个 text 块的内容，去除可能的 Markdown 代码块包裹
-	content := strings.TrimSpace(claudeResp.Content[0].Text)
+	// 去除可能的 Markdown 代码块包裹
 	content = stripMarkdownCodeBlock(content)
 
 	var llmResp LLMResponse
@@ -81,6 +38,59 @@ func (p *ClaudeProvider) Chat(systemPrompt, userMessage string) (*LLMResponse, e
 	}
 
 	return &llmResp, nil
+}
+
+// ChatRaw 调用 Anthropic Messages API，返回 LLM 原始文本响应（不做 JSON 解析）
+func (p *ClaudeProvider) ChatRaw(systemPrompt, userMessage string) (string, error) {
+	apiURL := strings.TrimRight(p.apiBaseURL, "/") + "/messages"
+
+	reqBody := claudeRequest{
+		Model:      p.modelName,
+		MaxTokens:  4096,
+		System:     systemPrompt,
+		Messages:   []claudeMessage{{Role: "user", Content: userMessage}},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("序列化 Claude 请求失败: %w", err)
+	}
+
+	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("创建 Claude HTTP 请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", p.apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("Claude API 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取 Claude 响应失败: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Claude API 返回错误状态 %d: %s", resp.StatusCode, string(body))
+	}
+
+	var claudeResp claudeResponse
+	if err := json.Unmarshal(body, &claudeResp); err != nil {
+		return "", fmt.Errorf("解析 Claude API 响应失败: %w", err)
+	}
+
+	if len(claudeResp.Content) == 0 {
+		return "", fmt.Errorf("Claude API 返回了空的 content")
+	}
+
+	// 提取第一个 text 块的内容
+	return strings.TrimSpace(claudeResp.Content[0].Text), nil
 }
 
 // stripMarkdownCodeBlock 去除可能的 Markdown 代码块标记（```json ... ```）

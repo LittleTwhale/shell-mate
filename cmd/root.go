@@ -96,8 +96,8 @@ var rootCmd = &cobra.Command{
 				printDangerWarning(resp.Cmd)
 			}
 
-			// 展示 TUI 菜单，用户选择执行/取消/解释
-			result := showTUI(resp.Cmd, resp.Explain, dangerous)
+			// 展示 TUI 菜单，用户选择执行/取消/解释/学习
+			result := showTUI(provider, resp.Cmd, resp.Explain, dangerous)
 
 			switch result.Action {
 			case "executed":
@@ -185,6 +185,8 @@ func initConfig() {
 
 	configCmd.Short = t("config.short")
 	configCmd.Long = t("config.long")
+	learnCmd.Short = t("learn.short")
+	learnCmd.Long = t("learn.long")
 }
 
 // initialCall 首次 LLM 调用，包含搜索慢路径逻辑

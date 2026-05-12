@@ -30,6 +30,7 @@ var messages = map[Lang]map[string]string{
   ◆  智能搜索      遇到云平台 CLI、生僻工具等不确定请求时，自动联网搜索防幻觉
   ◆  多模型切换    内置 OpenAI/DeepSeek/Ollama/Claude，支持一键切换 Provider
   ◆  多语言支持    通过 sm config -l 自由切换中英文界面
+  ◆  学习卡片      命令生成后可选择 Learn 查看知识卡片，也可独立使用 sm learn 命令
 
 ━━━ 使用示例 ━━━
   sm 列出当前目录下最大的 5 个文件
@@ -39,6 +40,7 @@ var messages = map[Lang]map[string]string{
   sm 用 AWS CLI 创建一个 S3 存储桶       （触发智能搜索）
   sm 递归删除所有 .log 文件               （触发危险拦截）
   sm 查看 git 最近 10 条提交的统计信息
+  sm learn "find . -name '*.go'"         （生成命令知识卡片）
 
 ━━━ 配置指南 ━━━
   sm config -k <API_KEY>            设置 LLM API 密钥（必填）
@@ -53,7 +55,15 @@ var messages = map[Lang]map[string]string{
 ━━━ 支持的环境变量 ━━━
   SHELL_MATE_API_KEY        等同于 sm config -k`,
 
-		"config.short": "管理 shell-mate 配置项",
+		"learn.short":    "为指定命令生成知识卡片",
+		"learn.long":     `为指定的 Shell 命令生成一张详细的"知识卡片"，包括命令概览、涉及的工具、参数详解、常见变体、最佳实践和注意事项。
+
+	示例: sm learn "find . -name '*.go' -mtime -7"`,
+		"learn.spinner":     "正在生成学习卡片: %s...",
+		"learn.fail":        "学习卡片生成失败: %v",
+		"learn.title":       "命令学习卡片",
+		"learn.original_cmd": "原命令",
+		"config.short":      "管理 shell-mate 配置项",
 		"config.long": `设置 API_KEY、API_BASE_URL、MODEL_NAME、SEARCH_API_KEY、LANGUAGE 等配置项，
 并将它们持久化保存到 ~/.shell-mate.yaml 文件中。
 
@@ -65,6 +75,7 @@ var messages = map[Lang]map[string]string{
 		"tui.opt_execute":    "[y] 执行 (Execute)",
 		"tui.opt_cancel":     "[n] 取消 (Cancel)",
 		"tui.opt_explain":    "[e] 解释 (Explain)",
+		"tui.opt_learn":      "[l] 学习卡片 (Learn)",
 		"tui.cancelled":      "已取消。",
 		"tui.explain_prefix": "\n命令解释: %s\n\n",
 		"tui.run_error":      "TUI 运行失败: %v",
@@ -149,6 +160,7 @@ translates natural language into executable Shell commands.
   ◆  Agentic Search      Auto-searches the web for complex/uncertain requests to prevent hallucination
   ◆  Pluggable LLMs      Built-in OpenAI/DeepSeek/Ollama/Claude presets for easy switching
   ◆  Multi-Language      Switch between Chinese and English UI via sm config -l
+  ◆  Learning Cards      Optional "Learn" after command generation, or standalone sm learn
 
 ━━━ Examples ━━━
   sm list the 5 largest files in current directory
@@ -158,6 +170,7 @@ translates natural language into executable Shell commands.
   sm upload readme.md to my remote server      (triggers interactive fill)
   sm recursively delete all .log files          (triggers safety guard)
   sm show git commit stats for the last 10 commits
+  sm learn "find . -name '*.go'"         (generate knowledge card)
 
 ━━━ Configuration ━━━
   sm config -k <API_KEY>                Set LLM API key (required)
@@ -172,7 +185,15 @@ translates natural language into executable Shell commands.
 ━━━ Environment Variables ━━━
   SHELL_MATE_API_KEY        Equivalent to sm config -k`,
 
-		"config.short": "Manage shell-mate configuration",
+		"learn.short":    "Generate a knowledge card for a command",
+		"learn.long":     `Generate a detailed "Knowledge Card" for a given Shell command, including command overview, tools used, parameter details, common variants, best practices, and cautions.
+
+	Example: sm learn "find . -name '*.go' -mtime -7"`,
+		"learn.spinner":      "Generating knowledge card: %s...",
+		"learn.fail":         "Knowledge card generation failed: %v",
+		"learn.title":        "Command Knowledge Card",
+		"learn.original_cmd": "Original Command",
+		"config.short":       "Manage shell-mate configuration",
 		"config.long": `Set API_KEY, API_BASE_URL, MODEL_NAME, SEARCH_API_KEY, LANGUAGE
 and persist them to ~/.shell-mate.yaml.
 
@@ -184,6 +205,7 @@ Running without arguments displays current configuration.`,
 		"tui.opt_execute":    "[y] Execute",
 		"tui.opt_cancel":     "[n] Cancel",
 		"tui.opt_explain":    "[e] Explain",
+		"tui.opt_learn":      "[l] Learn",
 		"tui.cancelled":      "Cancelled.",
 		"tui.explain_prefix": "\nExplanation: %s\n\n",
 		"tui.run_error":      "TUI error: %v",

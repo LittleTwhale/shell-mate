@@ -1,16 +1,19 @@
 package cmd
 
 import (
-	"regexp"
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/huh"
+
+	"shell-mate/llm"
 )
 
 // TUIResult showTUI 的返回结果，告知调用方下一步动作
@@ -20,9 +23,9 @@ type TUIResult struct {
 }
 
 // showTUI 显示交互式命令确认菜单
-// 用户可选择执行/取消/解释。执行失败后提供 AI 修正重试选项。
+// 用户可选择执行/取消/解释/学习。执行失败后提供 AI 修正重试选项。
 // dangerous 为 true 时，执行前需要输入 YES 二次确认
-func showTUI(cmdStr, explain string, dangerous bool) TUIResult {
+func showTUI(provider llm.Provider, cmdStr, explain string, dangerous bool) TUIResult {
 	for {
 		var choice string
 
@@ -35,6 +38,7 @@ func showTUI(cmdStr, explain string, dangerous bool) TUIResult {
 						huh.NewOption(t("tui.opt_execute"), "y"),
 						huh.NewOption(t("tui.opt_cancel"), "n"),
 						huh.NewOption(t("tui.opt_explain"), "e"),
+						huh.NewOption(t("tui.opt_learn"), "l"),
 					).
 					Value(&choice),
 			),
@@ -69,6 +73,24 @@ func showTUI(cmdStr, explain string, dangerous bool) TUIResult {
 
 		case "e":
 			fmt.Printf(t("tui.explain_prefix"), explain)
+			// 继续循环，重新展示菜单
+
+		case "l":
+			// 调用 LLM 生成命令学习卡片（返回 Markdown 纯文本）
+			lang := CurrentLang()
+			sp := startSpinner(fmt.Sprintf(t("learn.spinner"), cmdStr))
+			cardContent, learnErr := llm.CallLLMForLearning(provider, cmdStr, lang)
+			sp.stop("")
+			if learnErr != nil {
+				fmt.Fprintf(os.Stderr, t("learn.fail")+"\n", learnErr)
+			} else {
+				printKnowledgeCard(cmdStr, cardContent)
+			}
+
+			// 防止 TUI 菜单遮挡长文本或错误信息，等待用户阅读完并回车后再刷新
+			fmt.Println("\n按回车键继续...")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+
 			// 继续循环，重新展示菜单
 		}
 	}
@@ -163,7 +185,6 @@ func executeCommand(cmdStr string) (exitCode int, stderr string, err error) {
 
 	return exitCode, stderrBuf.String(), runErr
 }
-
 
 // fillPlaceholders 扫描命令中的 <...> 占位符，如果存在，则弹窗让用户填空
 func fillPlaceholders(cmdStr string) (string, error) {

@@ -6,8 +6,10 @@ import "fmt"
 type Provider interface {
 	// Name 返回 Provider 名称标识（如 openai / deepseek / ollama / claude）
 	Name() string
-	// Chat 发送系统提示词和用户消息，返回结构化 LLM 响应
+	// Chat 发送系统提示词和用户消息，返回结构化 LLM 响应（JSON 解析后）
 	Chat(systemPrompt, userMessage string) (*LLMResponse, error)
+	// ChatRaw 发送系统提示词和用户消息，返回 LLM 原始文本响应（不做 JSON 解析）
+	ChatRaw(systemPrompt, userMessage string) (string, error)
 }
 
 // Preset 每个 Provider 的默认配置预设

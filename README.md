@@ -21,7 +21,7 @@
 自动收集操作系统、Shell 类型、当前目录文件列表，让 AI 生成的命令精准适配你的环境。
 
 ### 交互式 TUI | Interactive TUI
-基于 Charmbracelet Huh 的美观终端菜单，生成命令后可选择 **执行 / 取消 / 解释**。
+基于 Charmbracelet Huh 的美观终端菜单，生成命令后可选择 **执行 / 取消 / 解释 / 学习**。
 
 ### 极速模式 | Fast Mode
 追加 `-f` 或 `--fast` 参数，AI 将跳过长篇大论的原理解释与联网搜索，将 Token 输出量降至极低。
@@ -43,6 +43,9 @@
 
 ### AI 自我纠错 | Self-Correction
 命令执行失败时自动捕获错误，AI 分析后给出修正命令，形成"翻译→执行→修正"闭环。
+
+### 学习卡片 | Learning Cards
+命令生成后可选 **[l] 学习卡片**，AI 会生成一张知识卡片，详解该命令涉及的工具、参数含义、常见变体、最佳实践和注意事项。也可独立使用：`sm learn "要学习的命令"`
 
 </td>
 </tr>
@@ -128,6 +131,7 @@ $ sm 列出当前目录下最大的 5 个文件
 #   [y] 执行 (Execute)
 #   [n] 取消 (Cancel)
 #   [e] 解释 (Explain)
+#   [l] 学习卡片 (Learn)
 ```
 
 ### 极速模式 
@@ -202,6 +206,7 @@ sm 查找占用 8080 端口的进程并杀掉它
 sm 查看最近 10 条 git 提交中每个文件的修改行数统计
 sm 把当前目录所有 .jpg 文件批量重命名为序号格式
 sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
+sm learn "find . -name '*.go' -mtime -7"   （生成命令知识卡片）
 ```
 
 ---
@@ -219,6 +224,7 @@ sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
 | `sm config --add-danger "xxx"` | 添加自定义高危拦截词 | Add custom dangerous keyword |
 | `sm config --remove-danger "xxx"` | 移除自定义高危拦截词 | Remove custom dangerous keyword |
 | `sm config` | 查看当前配置 | Show current config |
+| `sm learn <命令>` | 为任意命令生成知识卡片 | Generate knowledge card |
 
 ---
 
@@ -250,7 +256,7 @@ sm 用 ffmpeg 把 video.mp4 转为 720p 的 GIF
 └────────┬────────┘
          ▼
 ┌─────────────────┐
-│  交互式 TUI 菜单 │  执行 / 取消 / 解释
+│  交互式 TUI 菜单 │  执行 / 取消 / 解释 / 学习
 └────────┬────────┘
          │ 执行失败?
          ▼
@@ -271,13 +277,15 @@ shell-mate/
 │   ├── config.go        # config 子命令
 │   ├── guard.go         # 安全护栏（危险关键词检测 + YES 确认）
 │   ├── i18n.go          # 多语言翻译表
+│   ├── learn.go         # learn 子命令（命令知识卡片生成与 Markdown 渲染）
 │   ├── spinner.go       # 终端旋转动画组件
-│   └── tui.go           # 交互式选择菜单 + 命令执行
+│   └── tui.go           # 交互式选择菜单 + 命令执行 + 动态填空
 ├── llm/
 │   ├── client.go        # LLM API 客户端 + OpenAI 兼容 Provider + 系统提示词
+│   ├── claude.go        # Anthropic Claude Provider 适配器
 │   ├── context.go       # 系统环境信息收集
-│   ├── provider.go      # Provider 接口定义 + 工厂方法 + 预设表
-│   └── claude.go        # Anthropic Claude Provider 适配器
+│   ├── learn.go         # 学习卡片 LLM 调用（Markdown 直接输出）
+│   └── provider.go      # Provider 接口定义 + 工厂方法 + 预设表
 └── search/
     ├── search.go        # DuckDuckGo / Bing 搜索
     └── search_test.go   # 搜索模块测试

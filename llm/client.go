@@ -34,6 +34,24 @@ func (p *OpenAICompatibleProvider) Name() string {
 
 // Chat 发送 Chat Completions 请求并解析 JSON 响应
 func (p *OpenAICompatibleProvider) Chat(systemPrompt, userMessage string) (*LLMResponse, error) {
+	content, err := p.ChatRaw(systemPrompt, userMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	// 剥离模型可能错误添加的 ```json Markdown 标签
+	content = stripMarkdownCodeBlock(content)
+
+	var llmResp LLMResponse
+	if err := json.Unmarshal([]byte(content), &llmResp); err != nil {
+		return nil, fmt.Errorf("解析 LLM JSON 响应失败: %w\n原始内容: %s", err, content)
+	}
+
+	return &llmResp, nil
+}
+
+// ChatRaw 发送 Chat Completions 请求，返回 LLM 原始文本响应（不做 JSON 解析）
+func (p *OpenAICompatibleProvider) ChatRaw(systemPrompt, userMessage string) (string, error) {
 	apiURL := strings.TrimRight(p.apiBaseURL, "/") + "/chat/completions"
 
 	reqBody := chatCompletionRequest{
@@ -47,12 +65,12 @@ func (p *OpenAICompatibleProvider) Chat(systemPrompt, userMessage string) (*LLMR
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("序列化请求失败: %w", err)
+		return "", fmt.Errorf("序列化请求失败: %w", err)
 	}
 
 	httpReq, err := http.NewRequest("POST", apiURL, bytes.NewReader(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("创建 HTTP 请求失败: %w", err)
+		return "", fmt.Errorf("创建 HTTP 请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
@@ -60,36 +78,29 @@ func (p *OpenAICompatibleProvider) Chat(systemPrompt, userMessage string) (*LLMR
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("API 请求失败: %w", err)
+		return "", fmt.Errorf("API 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
+		return "", fmt.Errorf("读取响应失败: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API 返回错误状态 %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("API 返回错误状态 %d: %s", resp.StatusCode, string(body))
 	}
 
 	var chatResp chatCompletionResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return nil, fmt.Errorf("解析 API 响应失败: %w", err)
+		return "", fmt.Errorf("解析 API 响应失败: %w", err)
 	}
 
 	if len(chatResp.Choices) == 0 {
-		return nil, fmt.Errorf("API 返回了空的 choices")
+		return "", fmt.Errorf("API 返回了空的 choices")
 	}
 
-	content := strings.TrimSpace(chatResp.Choices[0].Message.Content)
-
-	var llmResp LLMResponse
-	if err := json.Unmarshal([]byte(content), &llmResp); err != nil {
-		return nil, fmt.Errorf("解析 LLM JSON 响应失败: %w\n原始内容: %s", err, content)
-	}
-
-	return &llmResp, nil
+	return strings.TrimSpace(chatResp.Choices[0].Message.Content), nil
 }
 
 // ========== 多语言系统提示词 ==========
