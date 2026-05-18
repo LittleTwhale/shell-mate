@@ -14,6 +14,7 @@ import (
 var (
 	cfgFile  string
 	fastMode bool // 极速模式标志位
+	dryRun   bool // Dry-Run 沙箱预览标志位
 )
 
 // rootCmd 是 shell-mate 的根命令，接收自然语言描述并翻译为 Shell 命令
@@ -226,7 +227,7 @@ func initialCall(provider llm.Provider, context string, userQuery string, lang s
 			}
 		}
 
-		if searchResults != nil && len(searchResults) > 0 {
+		if len(searchResults) > 0 {
 			sp.update(t("root.search_spin_done"))
 			flatResults := search.FlattenResults(searchResults, lang)
 			resp2, err2 := llm.CallLLMWithSearch(provider, context, userQuery, flatResults, lang)

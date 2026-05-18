@@ -164,8 +164,27 @@ func executeCommand(cmdStr string) (exitCode int, stderr string, err error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 
+	// 打印命令执行回显 Banner
+	cyan := "\033[1;36m"
+	reset := "\033[0m"
 	fmt.Println()
+	fmt.Println(cyan + "━━━ " + t("tui.executing") + " ━━━" + reset)
+	fmt.Printf("  %s\n", cmdStr)
+	fmt.Println(cyan + "━━━━━━━━━━━━━━━━━━━━━━" + reset)
+	fmt.Println()
+
 	runErr := cmd.Run()
+
+	// 打印执行结果状态行
+	if runErr != nil {
+		if exitErr, ok := runErr.(*exec.ExitError); ok {
+			fmt.Printf("\n\033[1;31m"+t("tui.exec_fail")+"\033[0m\n", exitErr.ExitCode())
+		} else {
+			fmt.Printf("\n\033[1;31m"+t("tui.exec_fail")+"\033[0m\n", -1)
+		}
+	} else {
+		fmt.Printf("\n\033[1;32m%s\033[0m\n", t("tui.exec_ok"))
+	}
 
 	// 获取退出码
 	if runErr != nil {
